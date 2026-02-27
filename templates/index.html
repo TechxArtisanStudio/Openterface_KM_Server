@@ -488,6 +488,10 @@
           setAgentStatus(msg.count);
         } else if (msg.type === 'echo') {
           term.write(msg.data);
+        } else if (msg.type === 'terminal_output') {
+          // Terminal mode: agent sends output back
+          term.write(msg.data);
+          incSent();
         }
       } catch (_) {}
     };
