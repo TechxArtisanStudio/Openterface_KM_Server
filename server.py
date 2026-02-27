@@ -31,6 +31,7 @@ Agent → Server → Browser  (back-channel):
   {"type": "ack", "msg": "..."}
 """
 
+import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -127,6 +128,11 @@ class RoleManager:
         msg = json.dumps({"type": "agent_status", "count": len(self._agents)})
         await self.relay_to_controllers(msg)
 
+    async def ping_all_controllers(self) -> None:
+        """Send a keepalive ping to every controller so proxies don't time out."""
+        msg = json.dumps({"type": "ping"})
+        await self.relay_to_controllers(msg)
+
     @property
     def controller_count(self) -> int:
         return len(self._controllers)
@@ -145,7 +151,16 @@ manager = RoleManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info("KeyMod server starting up …")
+
+    async def _heartbeat() -> None:
+        """Ping all browser clients every 20 s to keep proxy connections alive."""
+        while True:
+            await asyncio.sleep(20)
+            await manager.ping_all_controllers()
+
+    task = asyncio.create_task(_heartbeat())
     yield
+    task.cancel()
     log.info("KeyMod server shutting down.")
 
 
@@ -201,6 +216,9 @@ async def controller_ws(ws: WebSocket) -> None:
                 continue
 
             msg_type = msg.get("type")
+
+            if msg_type == "pong":
+                continue  # browser replied to our keepalive – ignore
 
             if msg_type in ("key", "mouse_move", "mouse_click", "mouse_scroll"):
                 await manager.relay_to_agents(raw)

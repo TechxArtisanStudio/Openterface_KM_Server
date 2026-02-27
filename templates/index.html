@@ -405,6 +405,7 @@
   /* ------------------------------------------------------------------ */
   let sentCount  = 0;
   let connectedAt = null;
+  let prevAgentCount = -1;   // -1 = unknown (fresh load)
 
   setInterval(() => {
     if (!connectedAt) return;
@@ -445,6 +446,16 @@
     const active = count > 0;
     agentPill.className = 'pill' + (active ? ' active' : '');
     agentLabel.textContent = active ? 'Agent \u00d7' + count : 'No agent';
+
+    // only print banner on actual transitions, not on the initial status push
+    if (prevAgentCount !== -1) {
+      if (count > 0 && prevAgentCount === 0) {
+        banner('\r\n\x1b[1;32m  \u2714 Agent connected \u2013 keyboard control is live.\x1b[0m\r');
+      } else if (count === 0 && prevAgentCount > 0) {
+        banner('\r\n\x1b[1;33m  \u26a0 Agent disconnected.\x1b[0m\r');
+      }
+    }
+    prevAgentCount = count;
   }
 
   function banner(line) { term.writeln(line); }
@@ -455,6 +466,7 @@
 
     ws.onopen = () => {
       connectedAt = Date.now();
+      prevAgentCount = -1;   // reset so next agent_status is treated as initial
       setServerStatus('ok');
       banner('\\r\\n\\x1b[1;32m \u250f\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2513\x1b[0m');
       banner('\\x1b[1;32m \u2503  KeyMod \u2013 Remote KM Control        \u2503\x1b[0m');
@@ -467,13 +479,13 @@
       if (typeof evt.data !== 'string') return;
       try {
         const msg = JSON.parse(evt.data);
+        if (msg.type === 'ping') {
+          // reply to keepalive so the server knows we're still here
+          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:'pong'}));
+          return;
+        }
         if (msg.type === 'agent_status') {
           setAgentStatus(msg.count);
-          if (msg.count > 0) {
-            banner('\\r\\n\\x1b[1;32m  \u2714 Agent connected \u2013 keyboard control is live.\\x1b[0m\\r');
-          } else {
-            banner('\\r\\n\\x1b[1;33m  \u26a0 Agent disconnected.\\x1b[0m\\r');
-          }
         } else if (msg.type === 'echo') {
           term.write(msg.data);
         }
