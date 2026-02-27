@@ -1,22 +1,46 @@
 """
-Ephemeral WebSocket server — designed to run inside a GitHub Actions job
-and be reached via a Cloudflare quick tunnel.
+KeyMod – Ephemeral KM Server
+==============================
+Runs inside a GitHub Actions job and is reachable via a Cloudflare quick tunnel.
+A browser user opens the web terminal and types; every keystroke is relayed in
+real-time to the target PC via a lightweight agent (agent.py) that must be
+running on the target machine.
 
 Endpoints
 ---------
-GET  /          Health-check (plain text "OK")
-GET  /clients   Number of currently connected WebSocket clients (JSON)
-WS   /ws        WebSocket endpoint – broadcasts every incoming message
-                to ALL connected clients (including the sender).
+GET  /          Web terminal UI  (xterm.js)
+GET  /status    Connected client counts  (JSON)
+WS   /ws        Browser controller WebSocket
+WS   /agent     Target-PC agent WebSocket
+
+Message protocol
+----------------
+KeyMod Qt app → Server  (binary WebSocket frames, CH9329 wire format):
+  [0x57][0xAB][addr][cmd][len][payload...][checksum]
+  CMD 0x02 – keyboard  (8-byte HID report: modifier, 0x00, key×6)
+  CMD 0x05 – relative mouse  (4 bytes: buttons, dx, dy, wheel)
+  CMD 0x06 – absolute mouse  (7 bytes: buttons, x_lo, x_hi, y_lo, y_hi, wx, wy)
+
+Browser web-terminal → Server  (JSON text frames):
+  {"type": "key",         "data": "<char or escape sequence>"}
+  {"type": "mouse_move",  "x": <int>, "y": <int>}
+  {"type": "mouse_click", "x": <int>, "y": <int>, "button": "left"|"right"|"middle"}
+  {"type": "mouse_scroll","x": <int>, "y": <int>, "dx": <int>, "dy": <int>}
+
+Agent → Server → Browser  (back-channel):
+  {"type": "ack", "msg": "..."}
 """
 
-import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
-from typing import Optional
+from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import PlainTextResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+
+# Path to the web UI template (templates/index.html)
+_INDEX_HTML = Path(__file__).parent / "templates" / "index.html"
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -26,42 +50,93 @@ logging.basicConfig(
     format="%(asctime)s  %(levelname)-8s  %(message)s",
     datefmt="%H:%M:%S",
 )
-log = logging.getLogger("km-server")
+log = logging.getLogger("keymod-server")
 
 
 # ---------------------------------------------------------------------------
-# Connection manager (broadcast to all connected sockets)
+# Connection managers
 # ---------------------------------------------------------------------------
-class ConnectionManager:
+class RoleManager:
+    """Tracks two separate pools: browser controllers and PC agents."""
+
     def __init__(self) -> None:
-        self._connections: list[WebSocket] = []
+        self._controllers: list[WebSocket] = []
+        self._agents: list[WebSocket] = []
+
+    # -- controllers (browsers) ------------------------------------------
+    async def connect_controller(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self._controllers.append(ws)
+        log.info("Controller connected  (total=%d)", len(self._controllers))
+        await self._broadcast_agent_status()
+
+    async def disconnect_controller(self, ws: WebSocket) -> None:
+        if ws in self._controllers:
+            self._controllers.remove(ws)
+        log.info("Controller disconnected (total=%d)", len(self._controllers))
+
+    # -- agents (target PCs) ---------------------------------------------
+    async def connect_agent(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self._agents.append(ws)
+        log.info("Agent connected  (total=%d)", len(self._agents))
+        await self._broadcast_agent_status()
+
+    async def disconnect_agent(self, ws: WebSocket) -> None:
+        if ws in self._agents:
+            self._agents.remove(ws)
+        log.info("Agent disconnected (total=%d)", len(self._agents))
+        await self._broadcast_agent_status()
+
+    # -- relay & broadcast -----------------------------------------------
+    async def relay_to_agents(self, message: str) -> None:
+        dead: list[WebSocket] = []
+        for agent in list(self._agents):
+            try:
+                await agent.send_text(message)
+            except Exception:
+                dead.append(agent)
+        for d in dead:
+            if d in self._agents:
+                self._agents.remove(d)
+
+    async def relay_to_agents_bytes(self, data: bytes) -> None:
+        """Relay a raw binary (CH9329) frame to every connected agent."""
+        dead: list[WebSocket] = []
+        for agent in list(self._agents):
+            try:
+                await agent.send_bytes(data)
+            except Exception:
+                dead.append(agent)
+        for d in dead:
+            if d in self._agents:
+                self._agents.remove(d)
+
+    async def relay_to_controllers(self, message: str) -> None:
+        dead: list[WebSocket] = []
+        for ctrl in list(self._controllers):
+            try:
+                await ctrl.send_text(message)
+            except Exception:
+                dead.append(ctrl)
+        for d in dead:
+            if d in self._controllers:
+                self._controllers.remove(d)
+
+    async def _broadcast_agent_status(self) -> None:
+        msg = json.dumps({"type": "agent_status", "count": len(self._agents)})
+        await self.relay_to_controllers(msg)
 
     @property
-    def count(self) -> int:
-        return len(self._connections)
+    def controller_count(self) -> int:
+        return len(self._controllers)
 
-    async def connect(self, ws: WebSocket) -> None:
-        await ws.accept()
-        self._connections.append(ws)
-        log.info("Client connected  (total=%d)", self.count)
-
-    def disconnect(self, ws: WebSocket) -> None:
-        self._connections.remove(ws)
-        log.info("Client disconnected (total=%d)", self.count)
-
-    async def broadcast(self, message: str, sender: Optional[WebSocket] = None) -> None:
-        """Send *message* to every connected client."""
-        dead: list[WebSocket] = []
-        for connection in self._connections:
-            try:
-                await connection.send_text(message)
-            except Exception:
-                dead.append(connection)
-        for d in dead:
-            self._connections.remove(d)
+    @property
+    def agent_count(self) -> int:
+        return len(self._agents)
 
 
-manager = ConnectionManager()
+manager = RoleManager()
 
 
 # ---------------------------------------------------------------------------
@@ -69,14 +144,14 @@ manager = ConnectionManager()
 # ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    log.info("Server starting up …")
+    log.info("KeyMod server starting up …")
     yield
-    log.info("Server shutting down.")
+    log.info("KeyMod server shutting down.")
 
 
 app = FastAPI(
-    title="Openterface KM Server",
-    description="Ephemeral WebSocket server used via Cloudflare quick tunnel",
+    title="KeyMod KM Server",
+    description="Ephemeral WebSocket KM server – browser → server → agent",
     lifespan=lifespan,
 )
 
@@ -84,26 +159,79 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
-@app.get("/", response_class=PlainTextResponse)
-async def health() -> str:
-    return "OK"
+@app.get("/", response_class=HTMLResponse)
+async def web_terminal() -> HTMLResponse:
+    """Serve the web UI from templates/index.html."""
+    return HTMLResponse(_INDEX_HTML.read_text(encoding="utf-8"))
 
 
-@app.get("/clients")
-async def client_count() -> JSONResponse:
-    return JSONResponse({"connected_clients": manager.count})
+@app.get("/status")
+async def status() -> JSONResponse:
+    return JSONResponse({
+        "controllers": manager.controller_count,
+        "agents": manager.agent_count,
+    })
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket) -> None:
-    await manager.connect(ws)
+async def controller_ws(ws: WebSocket) -> None:
+    """KeyMod app (binary CH9329) or browser web-terminal (JSON) connection."""
+    await manager.connect_controller(ws)
     try:
         while True:
-            data = await ws.receive_text()
-            log.info("Message received: %r", data)
-            await manager.broadcast(data, sender=ws)
+            message = await ws.receive()
+
+            # ---- Binary frame: CH9329 protocol from KeyMod app ----------
+            if message.get("bytes"):
+                raw_bytes: bytes = message["bytes"]
+                await manager.relay_to_agents_bytes(raw_bytes)
+                log.info(
+                    "Relayed CH9329 binary frame (%d bytes) to %d agent(s)",
+                    len(raw_bytes), manager.agent_count,
+                )
+                continue
+
+            # ---- Text frame: JSON from browser web terminal -------------
+            raw = message.get("text", "")
+            if not raw:
+                continue
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = msg.get("type")
+
+            if msg_type in ("key", "mouse_move", "mouse_click", "mouse_scroll"):
+                await manager.relay_to_agents(raw)
+
+                # Echo printable chars back to the browser terminal display
+                if msg_type == "key":
+                    data = msg.get("data", "")
+                    echo = json.dumps({"type": "echo", "data": data})
+                    await ws.send_text(echo)
+
+                log.info("Relayed %s event to %d agent(s)", msg_type, manager.agent_count)
+
     except WebSocketDisconnect:
-        manager.disconnect(ws)
+        await manager.disconnect_controller(ws)
     except Exception as exc:
-        log.error("Unexpected error: %s", exc)
-        manager.disconnect(ws)
+        log.error("Controller error: %s", exc)
+        await manager.disconnect_controller(ws)
+
+
+@app.websocket("/agent")
+async def agent_ws(ws: WebSocket) -> None:
+    """Target-PC agent connection."""
+    await manager.connect_agent(ws)
+    try:
+        while True:
+            message = await ws.receive()
+            # Relay any back-channel message (ack, error, etc.) to controllers
+            if message.get("text"):
+                await manager.relay_to_controllers(message["text"])
+    except WebSocketDisconnect:
+        await manager.disconnect_agent(ws)
+    except Exception as exc:
+        log.error("Agent error: %s", exc)
+        await manager.disconnect_agent(ws)

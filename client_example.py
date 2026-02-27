@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
 """
-Minimal WebSocket client example.
+KeyMod – raw WebSocket test client (for debugging only).
 
-Usage
------
-  # Install dependency once:
+For normal use, open the server URL in a browser – the web terminal UI
+is served automatically at GET /.
+
+To run the target-PC agent instead, use agent.py:
+  python agent.py wss://xxxx.trycloudflare.com
+
+Usage (raw test client)
+-----------------------
   pip install websockets
 
-  # Connect to the ephemeral server (replace URL from job logs):
   python client_example.py wss://xxxx.trycloudflare.com/ws
+  # or for local:
+  python client_example.py ws://localhost:8000/ws
 
-  # Or, for a local server:
-  python client_example.py ws://localhost:8765/ws
+JSON commands you can paste to test:
+  {"type": "key", "data": "hello"}
+  {"type": "mouse_move", "x": 500, "y": 300}
+  {"type": "mouse_click", "x": 500, "y": 300, "button": "left"}
 
-Once connected you can type messages and press Enter to send them.
-Every message is broadcast to all connected clients, so open a second
-terminal with the same command to see the broadcast in action.
 Type  /quit  or press Ctrl-C to exit.
 """
 
