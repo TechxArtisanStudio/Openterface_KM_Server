@@ -34,11 +34,19 @@ Agent → Server → Browser  (back-channel):
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import httpx
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel
+
+# Load .env (silently ignored if the file doesn't exist)
+load_dotenv()
 
 # Path to the web UI template (templates/index.html)
 _INDEX_HTML = Path(__file__).parent / "templates" / "index.html"
@@ -234,6 +242,64 @@ async def status() -> JSONResponse:
         "controllers": manager.controller_count,
         "agents": manager.agent_count,
     })
+
+
+# ---------------------------------------------------------------------------
+# GitHub Actions remote-trigger
+# ---------------------------------------------------------------------------
+class TriggerBuildRequest(BaseModel):
+    """Optional overrides – all fields fall back to .env defaults."""
+    repo: str | None = None          # owner/repo  (overrides GITHUB_REPO)
+    workflow: str | None = None      # file name or numeric ID (overrides GITHUB_WORKFLOW)
+    ref: str | None = None           # branch / tag / SHA  (overrides GITHUB_REF)
+    inputs: dict[str, Any] | None = None  # workflow_dispatch inputs
+
+
+@app.post("/trigger-build")
+async def trigger_build(body: TriggerBuildRequest = TriggerBuildRequest()) -> JSONResponse:
+    """
+    Trigger a GitHub Actions workflow via the `workflow_dispatch` event.
+
+    Reads GITHUB_TOKEN, GITHUB_REPO, GITHUB_WORKFLOW, and GITHUB_REF from the
+    .env file (or environment).  All values can be overridden per-request.
+    """
+    token    = os.getenv("GITHUB_TOKEN", "")
+    repo     = body.repo     or os.getenv("GITHUB_REPO",     "")
+    workflow = body.workflow  or os.getenv("GITHUB_WORKFLOW", "build.yml")
+    ref      = body.ref       or os.getenv("GITHUB_REF",      "main")
+
+    if not token:
+        raise HTTPException(status_code=500, detail="GITHUB_TOKEN not set in .env / environment")
+    if not repo:
+        raise HTTPException(status_code=400, detail="repo not provided and GITHUB_REPO not set")
+
+    url = f"https://api.github.com/repos/{repo}/actions/workflows/{workflow}/dispatches"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    payload: dict[str, Any] = {"ref": ref}
+    if body.inputs:
+        payload["inputs"] = body.inputs
+
+    log.info("Triggering workflow '%s' on %s @ %s", workflow, repo, ref)
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(url, headers=headers, json=payload)
+
+    if resp.status_code == 204:
+        log.info("Workflow dispatch accepted (204 No Content)")
+        return JSONResponse({"ok": True, "message": "Workflow dispatch accepted"})
+
+    # GitHub returns a descriptive JSON body on errors
+    try:
+        detail = resp.json()
+    except Exception:
+        detail = resp.text
+
+    log.warning("GitHub API error %d: %s", resp.status_code, detail)
+    raise HTTPException(status_code=resp.status_code, detail=detail)
 
 
 @app.websocket("/ws")

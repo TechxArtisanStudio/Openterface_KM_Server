@@ -38,7 +38,7 @@ class SimpleTerminal:
                 return False, '\x08 \x08'  # Backspace + space + backspace to erase
         elif data == '\x03':  # Ctrl+C
             self.command_buffer = ""
-            return False, '^C\r\n'
+            return False, '^C\r\n' + self.get_prompt()
         elif data in ('\r', '\n', '\r\n'):  # Enter
             cmd = self.command_buffer
             self.command_buffer = ""
@@ -52,16 +52,16 @@ class SimpleTerminal:
             return False, data  # Echo back for display
     
     def execute_command(self, cmd: str) -> str:
-        """Execute a shell command and return output."""
+        """Execute a shell command and return output + prompt."""
         if not cmd.strip():
             return self.get_prompt()
         
         try:
             # Simple approach: run common shell commands
             if cmd.strip() == 'pwd':
-                return f"{self.cwd}\n{self.get_prompt()}"
+                output = self.cwd
             elif cmd.strip() == 'clear':
-                return '\x1b[2J\x1b[H'  # ANSI clear screen
+                return '\x1b[2J\x1b[H' + self.get_prompt()
             elif cmd.startswith('cd '):
                 new_dir = cmd[3:].strip()
                 if new_dir == '~':
@@ -69,15 +69,17 @@ class SimpleTerminal:
                 try:
                     os.chdir(new_dir)
                     self.cwd = os.getcwd()
-                    return self.get_prompt()
+                    return '\r\n' + self.get_prompt()
                 except (FileNotFoundError, OSError) as e:
-                    return f"cd: {e}\n{self.get_prompt()}"
+                    output = f"cd: {e}"
             elif cmd.strip() == 'whoami':
-                return f"{os.getenv('USER', 'user')}\n{self.get_prompt()}"
+                output = os.getenv('USER', 'user')
             elif cmd.strip() == 'ls' or cmd.startswith('ls '):
                 try:
+                    # Use -1 flag to output one item per line (cleaner terminal display)
+                    cmd_to_run = cmd if ' -' in cmd else f"{cmd} -1"
                     result = subprocess.run(
-                        cmd,
+                        cmd_to_run,
                         shell=True,
                         cwd=self.cwd,
                         capture_output=True,
@@ -85,9 +87,8 @@ class SimpleTerminal:
                         timeout=3
                     )
                     output = (result.stdout or "") + (result.stderr or "")
-                    return output + self.get_prompt()
                 except Exception as e:
-                    return f"Error: {e}\n{self.get_prompt()}"
+                    output = f"Error: {e}"
             else:
                 # Try to execute as shell command
                 try:
@@ -100,15 +101,18 @@ class SimpleTerminal:
                         timeout=3
                     )
                     output = (result.stdout or "") + (result.stderr or "")
-                    if not output:
-                        output = f"\n"
-                    return output + self.get_prompt()
+                    if not output.strip():
+                        output = ""
                 except subprocess.TimeoutExpired:
-                    return f"Command timed out\n{self.get_prompt()}"
+                    output = f"Command timed out"
                 except Exception as e:
-                    return f"{cmd}: command not found\n{self.get_prompt()}"
+                    output = f"{cmd}: command not found"
         except Exception as e:
-            return f"Error: {e}\n{self.get_prompt()}"
+            output = f"Error: {e}"
+        
+        # Format: newline + output (stripped) + newline + prompt
+        output = output.rstrip()
+        return '\r\n' + output + '\r\n' + self.get_prompt()
     
     def get_prompt(self) -> str:
         """Return the shell prompt."""
