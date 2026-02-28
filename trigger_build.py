@@ -97,16 +97,15 @@ def _get_latest_run(repo: str, token: str, workflow: str):
 
 def watch_for_tunnel_url(repo: str, token: str, run_id: int, dispatched_at: str = ""):
     """
-    Poll the repo Actions variable TUNNEL_URL (written by the workflow once the
-    Cloudflare tunnel is established).  The variable is updated in-place on
-    every run so we validate its updated_at timestamp >= dispatched_at.
+    Poll the repo file `.tunnel-url` (written by the workflow using the
+    contents API + GITHUB_TOKEN with contents:write permission).
     Returns the public HTTPS URL, or None on timeout / failure.
     """
     jobs_url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/jobs"
-    var_url  = f"https://api.github.com/repos/{repo}/actions/variables/TUNNEL_URL"
+    file_url = f"https://api.github.com/repos/{repo}/contents/.tunnel-url"
 
     print(f"\nWatching: https://github.com/{repo}/actions/runs/{run_id}")
-    print("Polling repo variable TUNNEL_URL (ready in ~60 s) …\n")
+    print("Polling .tunnel-url file in repo (ready in ~60 s) …\n")
 
     last_step = ""
 
@@ -135,24 +134,36 @@ def watch_for_tunnel_url(repo: str, token: str, run_id: int, dispatched_at: str 
         except Exception:
             pass
 
-        # -- Poll the TUNNEL_URL repo variable --
+        # -- Poll .tunnel-url file --
         try:
-            var = _gh_get(var_url, token)
-            updated_at = var.get("updated_at", "")   # e.g. "2024-03-10T00:59:05Z"
-            value      = var.get("value", "").strip()
-
-            # Ignore stale value from a previous run
-            if dispatched_at and updated_at[:19] < dispatched_at[:19]:
-                continue
-
-            m = _TUNNEL_RE.search(value)
+            file_data  = _gh_get(file_url, token)
+            updated_at = file_data.get("commit", {}).get("committer", {}).get("date", "") or \
+                         file_data.get("last_modified", "")
+            import base64 as _b64
+            raw  = _b64.b64decode(file_data["content"]).decode().strip()
+            m    = _TUNNEL_RE.search(raw)
             if m:
+                # Guard against a stale file from a previous run
+                # by checking the commit timestamp is >= dispatched_at
+                commit_date = ""
+                try:
+                    commit_url  = file_data.get("_links", {}).get("git", "")
+                    # Use the sha to get commit date via git/commits API
+                    file_sha    = file_data.get("sha", "")
+                    commits_url = f"https://api.github.com/repos/{repo}/commits?path=.tunnel-url&per_page=1"
+                    commits     = _gh_get(commits_url, token)
+                    if commits:
+                        commit_date = commits[0].get("commit", {}).get("committer", {}).get("date", "")[:19]
+                except Exception:
+                    pass
+                if dispatched_at and commit_date and commit_date < dispatched_at[:19]:
+                    continue   # stale from previous run
                 return m.group(0)
         except urllib.error.HTTPError as exc:
-            if exc.code != 404:   # 404 = variable not created yet, keep waiting
-                print(f"  [variable] HTTP {exc.code}")
+            if exc.code != 404:  # 404 = file not written yet
+                print(f"  [file] HTTP {exc.code}")
         except Exception as exc:
-            print(f"  [variable] {exc}")
+            print(f"  [file] {exc}")
 
     print("Timed out waiting for tunnel URL (7 min).")
     return None
