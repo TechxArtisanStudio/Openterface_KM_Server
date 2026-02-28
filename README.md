@@ -20,10 +20,11 @@ Browser / client_example.py
   Target PC  keyboard / mouse
 ```
 
-1. **GitHub Actions** starts `server.py` behind a Cloudflare quick-tunnel and prints the public URL in the job log.
-2. **You** open the URL in a browser (web terminal UI) or run `client_example.py`.
-3. **`agent.py`** runs on the machine you want to control and connects to `/agent`.
-4. Every keystroke / mouse event typed in the browser is relayed in real-time to the agent, which replays it on the target PC using `pynput`.
+1. **GitHub Actions** starts `server.py` behind a Cloudflare quick-tunnel.
+2. The tunnel URL is committed to `.tunnel-url` in the repo via `git push`.
+3. **`trigger_build.py`** (or the Actions UI) dispatches the job and automatically polls for the URL — no manual log-watching needed.
+4. **`agent.py`** runs on the machine you want to control and connects to `/agent`.
+5. Every keystroke / mouse event typed in the browser is relayed in real-time to the agent, which replays it on the target PC using `pynput`.
 
 ---
 
@@ -34,6 +35,7 @@ Browser / client_example.py
 ├── server.py               FastAPI WebSocket server
 ├── agent.py                Target-PC agent (run this on the machine to control)
 ├── client_example.py       Terminal keyboard client (alternative to the browser UI)
+├── trigger_build.py        Local script: trigger + auto-detect tunnel URL
 ├── requirements.txt        Python dependencies
 ├── templates/
 │   └── index.html          Web terminal UI (xterm.js)
@@ -45,32 +47,87 @@ Browser / client_example.py
 
 ## Quick start
 
-### 1 · Start the server via GitHub Actions
+### 0 · One-time setup — create `.env`
+
+Create a `.env` file in the project root (never committed — already in `.gitignore`):
+
+```ini
+GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx   # PAT with repo + workflow scopes
+GITHUB_REPO=owner/repo-name
+GITHUB_WORKFLOW=start-server.yml
+GITHUB_REF=main
+```
+
+Generate a token at **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens** with:
+- **Repository permissions:** Contents (read/write), Actions (read/write), Workflows (read/write)
+
+### 1 · Trigger from your local machine (recommended)
+
+```bash
+python3 trigger_build.py               # start server for default 10 min, watch for URL
+python3 trigger_build.py --duration 30 # keep alive for 30 minutes
+python3 trigger_build.py --no-watch    # dispatch and exit immediately
+python3 trigger_build.py --watch-only  # re-attach to the latest running job
+```
+
+`trigger_build.py` requires **no third-party packages** — it uses Python 3 stdlib only.
+
+When the tunnel is ready (~60 s after dispatch) the script prints:
+
+```
+========================================================
+  HTTP URL : https://xxxx.trycloudflare.com
+  WSS  URL : wss://xxxx.trycloudflare.com/ws
+  Agent    : python3 agent.py wss://xxxx.trycloudflare.com/agent
+========================================================
+```
+
+#### How tunnel URL detection works
+
+The workflow writes the URL to a `.tunnel-url` file in the repo via `git push`
+(using the `GITHUB_TOKEN` that `actions/checkout` already configured).
+`trigger_build.py` polls `GET /repos/{owner}/{repo}/contents/.tunnel-url` once
+every 6 seconds and compares the commit timestamp against the dispatch time to
+ignore stale values from earlier runs.
+
+#### All CLI flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--duration N` | 10 | Keep server alive for N minutes (1–60) |
+| `--repo OWNER/REPO` | `$GITHUB_REPO` | Target repository |
+| `--workflow FILE` | `$GITHUB_WORKFLOW` | Workflow file name |
+| `--ref BRANCH` | `$GITHUB_REF` | Git ref to run on |
+| `--token TOKEN` | `$GITHUB_TOKEN` | GitHub PAT |
+| `--input KEY=VALUE` | — | Extra workflow inputs (repeatable) |
+| `--watch` / `--no-watch` | watch | Poll for tunnel URL after dispatch |
+| `--watch-only` | — | Skip dispatch; watch latest run |
+
+### 2 · Trigger from the GitHub Actions UI (alternative)
 
 1. Go to **Actions → Start Ephemeral Server → Run workflow**.
 2. Optionally set `duration_minutes` (1–60, default 10).
-3. Watch the job log for the public URL, which looks like:
-
+3. Watch the job log — the URL appears under the **Start Cloudflare tunnel** step:
    ```
    PUBLIC HTTP URL : https://xxxx.trycloudflare.com
    PUBLIC WSS URL  : wss://xxxx.trycloudflare.com/ws
    ```
 
-### 2 · Run the agent on the target PC
+### 3 · Run the agent on the target PC
 
 ```bash
 pip install websockets pynput
 
-python agent.py wss://xxxx.trycloudflare.com
+python agent.py wss://xxxx.trycloudflare.com/agent
 ```
 
 The agent reconnects automatically if the connection drops.
 
-### 3 · Control from a browser
+### 4 · Control from a browser
 
 Open `https://xxxx.trycloudflare.com` in any browser. The xterm.js web terminal loads automatically. Once the agent connects, the **Agent ×1** badge turns green and every keystroke is forwarded to the target machine in real time.
 
-### 3b · Control from the terminal (alternative)
+### 4b · Control from the terminal (alternative)
 
 ```bash
 pip install websockets
