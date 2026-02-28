@@ -93,6 +93,7 @@ jobs:
             exit 1
           fi
 
+          echo "$PUBLIC_URL" > /tmp/tunnel_url.txt
           echo ""
           echo "============================================================"
           echo "  PUBLIC HTTP URL : $PUBLIC_URL"
@@ -101,6 +102,17 @@ jobs:
           echo "  Client count    : curl $PUBLIC_URL/clients"
           echo "============================================================"
           echo ""
+
+
+      # -----------------------------------------------------------------------
+      # 5b. Upload tunnel URL as an artifact (enables API polling)
+      # -----------------------------------------------------------------------
+      - name: Upload tunnel URL as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tunnel-url
+          path: /tmp/tunnel_url.txt
+          retention-days: 1
 
       # -----------------------------------------------------------------------
       # 6. Keep runner alive for the requested number of minutes
