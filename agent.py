@@ -403,14 +403,34 @@ def handle_mouse_scroll(x: int, y: int, dx: int, dy: int) -> None:
 
 # ---------------------------------------------------------------------------
 # Hotkey combos (System tab quick-keys)
+# Keys shared across multiple OS entries are intentional aliases.
 # ---------------------------------------------------------------------------
 HOTKEY_MAP: dict[str, list] = {
-    "win":         [Key.cmd],
-    "win+d":       [Key.cmd, "d"],
-    "win+r":       [Key.cmd, "r"],
-    "win+l":       [Key.cmd, "l"],
-    "alt+f4":      [Key.alt, Key.f4],
-    "ctrl+alt+del":[Key.ctrl, Key.alt, Key.delete],
+    # ── Windows ─────────────────────────────────────────────────────────
+    "win":              [Key.cmd],
+    "win+d":            [Key.cmd, "d"],
+    "win+r":            [Key.cmd, "r"],
+    "win+l":            [Key.cmd, "l"],
+    "win+e":            [Key.cmd, "e"],
+    "win+tab":          [Key.cmd, Key.tab],
+    "alt+f4":           [Key.alt, Key.f4],
+    "ctrl+alt+del":     [Key.ctrl, Key.alt, Key.delete],
+    # ── macOS ────────────────────────────────────────────────────────────
+    "cmd+space":        [Key.cmd, Key.space],
+    "cmd+tab":          [Key.cmd, Key.tab],
+    "cmd+q":            [Key.cmd, "q"],
+    "cmd+h":            [Key.cmd, "h"],
+    "cmd+m":            [Key.cmd, "m"],
+    "cmd+w":            [Key.cmd, "w"],
+    "ctrl+cmd+q":       [Key.ctrl, Key.cmd, "q"],
+    "cmd+opt+esc":      [Key.cmd, Key.alt, Key.esc],
+    # ── Linux ────────────────────────────────────────────────────────────
+    "super":            [Key.cmd],
+    "super+d":          [Key.cmd, "d"],
+    "ctrl+alt+t":       [Key.ctrl, Key.alt, "t"],
+    "ctrl+alt+l":       [Key.ctrl, Key.alt, "l"],
+    "alt+tab":          [Key.alt, Key.tab],
+    "prtsc":            [Key.print_screen],
 }
 
 

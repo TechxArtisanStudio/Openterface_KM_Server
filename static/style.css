@@ -255,6 +255,25 @@ body {
 .qkey:hover  { background: #252d40; border-color: #3a4258; }
 .qkey:active { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
 
+/* OS selector pills (above System quick-key grid) */
+.os-selector {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 5px;
+}
+.os-selector.hidden { display: none; }
+.os-pill {
+  flex: 1;
+  padding: 4px 2px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: transparent; color: var(--text-muted);
+  font-size: 10px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.os-pill:hover  { background: var(--surface2); color: var(--text); }
+.os-pill.active { background: var(--surface2); color: var(--blue); border-color: var(--blue); }
+
 /* send text */
 #text-input {
   flex: 1;

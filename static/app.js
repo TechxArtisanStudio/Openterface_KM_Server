@@ -248,15 +248,45 @@
       { label: 'Del',    data: '\x1b[3~' },
       { label: 'Ins',    data: '\x1b[2~' },
     ],
-    sys: [
-      { label: 'Win',    hotkey: 'win'     },
-      { label: 'Win+D',  hotkey: 'win+d',  title: 'Show Desktop' },
-      { label: 'Win+R',  hotkey: 'win+r',  title: 'Run dialog' },
-      { label: 'Win+L',  hotkey: 'win+l',  title: 'Lock screen' },
-      { label: 'C+A+D',  hotkey: 'ctrl+alt+del', title: 'Ctrl+Alt+Del' },
-      { label: 'Alt+F4', hotkey: 'alt+f4', title: 'Close window' },
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* OS-specific System shortcuts                                        */
+  /* ------------------------------------------------------------------ */
+  const SYS_KEYS_BY_OS = {
+    windows: [
+      { label: 'Win',     hotkey: 'win',          title: 'Windows key' },
+      { label: 'Win+D',   hotkey: 'win+d',        title: 'Show Desktop' },
+      { label: 'Win+R',   hotkey: 'win+r',        title: 'Run dialog' },
+      { label: 'Win+L',   hotkey: 'win+l',        title: 'Lock screen' },
+      { label: 'Win+E',   hotkey: 'win+e',        title: 'File Explorer' },
+      { label: 'Win+Tab', hotkey: 'win+tab',      title: 'Task View' },
+      { label: 'C+A+D',   hotkey: 'ctrl+alt+del', title: 'Ctrl+Alt+Del' },
+      { label: 'Alt+F4',  hotkey: 'alt+f4',       title: 'Close window' },
+    ],
+    macos: [
+      { label: '\u2318Space',  hotkey: 'cmd+space',   title: 'Spotlight' },
+      { label: '\u2318Tab',    hotkey: 'cmd+tab',     title: 'App Switcher' },
+      { label: '\u2318Q',      hotkey: 'cmd+q',       title: 'Quit app' },
+      { label: '\u2318H',      hotkey: 'cmd+h',       title: 'Hide window' },
+      { label: '\u2318M',      hotkey: 'cmd+m',       title: 'Minimize' },
+      { label: '\u2318W',      hotkey: 'cmd+w',       title: 'Close window' },
+      { label: '\u2303\u2318Q', hotkey: 'ctrl+cmd+q', title: 'Lock screen' },
+      { label: '\u2318\u2325Esc', hotkey: 'cmd+opt+esc', title: 'Force Quit' },
+    ],
+    linux: [
+      { label: 'Super',   hotkey: 'super',        title: 'Activities / launcher' },
+      { label: 'Super+D', hotkey: 'super+d',      title: 'Show Desktop' },
+      { label: 'C+A+T',   hotkey: 'ctrl+alt+t',   title: 'Open Terminal' },
+      { label: 'C+A+L',   hotkey: 'ctrl+alt+l',   title: 'Lock screen' },
+      { label: 'C+A+D',   hotkey: 'ctrl+alt+del', title: 'Log out' },
+      { label: 'Alt+F4',  hotkey: 'alt+f4',       title: 'Close window' },
+      { label: 'Alt+Tab', hotkey: 'alt+tab',      title: 'Switch windows' },
+      { label: 'PrtSc',   hotkey: 'prtsc',        title: 'Screenshot' },
     ],
   };
+
+  let targetOS = localStorage.getItem('km_target_os') || 'macos';
 
   /* ------------------------------------------------------------------ */
   /* Session countdown                                                    */
@@ -397,7 +427,43 @@
     });
   }
 
-  Object.entries(QUICK_KEYS).forEach(([id, keys]) => buildQuickGrid(id, keys));
+  function renderSysTab() {
+    const osSel = document.getElementById('os-selector');
+    const grid  = document.getElementById('qtab-sys');
+
+    // Rebuild OS selector pills
+    osSel.innerHTML = '';
+    [['windows', '\uD83E\uDEDF Windows'], ['macos', '\uD83C\uDF4E macOS'], ['linux', '\uD83D\uDC27 Linux']].forEach(([id, lbl]) => {
+      const btn = document.createElement('button');
+      btn.className = 'os-pill' + (targetOS === id ? ' active' : '');
+      btn.textContent = lbl;
+      btn.addEventListener('click', () => {
+        targetOS = id;
+        localStorage.setItem('km_target_os', targetOS);
+        renderSysTab();
+        term.focus();
+      });
+      osSel.appendChild(btn);
+    });
+
+    // Rebuild key grid
+    grid.innerHTML = '';
+    (SYS_KEYS_BY_OS[targetOS] || []).forEach(k => {
+      const btn = document.createElement('button');
+      btn.className = 'qkey';
+      btn.textContent = k.label;
+      if (k.title) btn.title = k.title;
+      btn.addEventListener('click', () => {
+        if (k.hotkey) sendHotkey(k.hotkey);
+        else          sendRaw(k.data);
+        term.focus();
+      });
+      grid.appendChild(btn);
+    });
+  }
+
+  ['nav', 'edit'].forEach(id => buildQuickGrid(id, QUICK_KEYS[id]));
+  renderSysTab();
 
   document.querySelectorAll('.qtab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -405,6 +471,8 @@
       document.querySelectorAll('.quick-grid').forEach(g => g.classList.add('hidden'));
       tab.classList.add('active');
       document.getElementById('qtab-' + tab.dataset.tab).classList.remove('hidden');
+      const osSel = document.getElementById('os-selector');
+      if (osSel) osSel.classList.toggle('hidden', tab.dataset.tab !== 'sys');
     });
   });
 
