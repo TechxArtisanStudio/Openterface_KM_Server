@@ -5,8 +5,18 @@ Trigger a GitHub Actions workflow_dispatch event from the command line.
 Reads credentials from .env (or environment variables).
 Optionally override repo, workflow, ref, and pass workflow inputs via CLI args.
 
-Usage
------
+One-liner (no local clone needed)
+----------------------------------
+  # Credentials from environment variables:
+  GITHUB_TOKEN=ghp_xxx GITHUB_REPO=owner/repo \\
+    curl -sSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_KM_Server/main/run.sh | bash
+
+  # Pass extra arguments after '--':
+  curl -sSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_KM_Server/main/run.sh \\
+    | bash -s -- --duration 30
+
+Local usage
+-----------
   python3 trigger_build.py                  # trigger + watch for tunnel URL
   python3 trigger_build.py --duration 20    # keep server alive 20 min
   python3 trigger_build.py --no-watch       # trigger and exit immediately
@@ -266,7 +276,7 @@ def main() -> None:
             print(f"\n{'='*56}")
             print(f"  HTTP URL : {tunnel}")
             print(f"  WSS  URL : {tunnel.replace('https:', 'wss:')}/ws")
-            print(f"  Agent    : python3 agent.py {tunnel.replace('https:', 'wss:')}/agent")
+            print(f"  Agent    : python3 agent.py {tunnel.replace('https:', 'wss:')}")
             print(f"{'='*56}")
         sys.exit(0 if tunnel else 1)
 
@@ -354,7 +364,7 @@ def main() -> None:
         print(f"\n{'='*56}")
         print(f"  HTTP URL : {tunnel}")
         print(f"  WSS  URL : {tunnel.replace('https:', 'wss:')}/ws")
-        print(f"  Agent    : python3 agent.py {tunnel.replace('https:', 'wss:')}/agent")
+        print(f"  Agent    : python3 agent.py {tunnel.replace('https:', 'wss:')}")
         print(f"{'='*56}")
     else:
         sys.exit(1)

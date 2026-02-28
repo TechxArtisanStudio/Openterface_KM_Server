@@ -430,7 +430,7 @@ HOTKEY_MAP: dict[str, list] = {
     "ctrl+alt+t":       [Key.ctrl, Key.alt, "t"],
     "ctrl+alt+l":       [Key.ctrl, Key.alt, "l"],
     "alt+tab":          [Key.alt, Key.tab],
-    "prtsc":            [Key.print_screen],
+    **( {"prtsc": [getattr(Key, "print_screen")]} if hasattr(Key, "print_screen") else {} ),
 }
 
 
