@@ -1,31 +1,30 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Openterface KM Server — one-liner launcher
+# Openterface KM Server — run agent on target PC
 #
-# Fetch and run trigger_build.py via Cloudflare tunnel (works with private repos):
+# This script downloads and runs agent.py to connect a target PC to the tunnel.
+# Usage (after tunnel is ready):
 #
-#   TUNNEL_URL=https://tunnel-url.trycloudflare.com curl -sSL $TUNNEL_URL/run.sh | bash
+#   curl -sSL https://tunnel-url/run.sh | bash -s -- https://tunnel-url
 #
-# Pass extra args after a '--':
-#   TUNNEL_URL=... curl -sSL ... | bash -s -- --duration 30
+# The script will automatically:
+#   - Download agent.py from the tunnel
+#   - Run it with the correct WebSocket URL (wss://)
+#   - Pass through any additional arguments to agent.py
 #
-# Or use localhost for development:
-#   curl -sSL http://localhost:8000/run.sh | bash
-#
-# Override credentials via env vars:
-#   GITHUB_TOKEN=ghp_xxx GITHUB_REPO=owner/repo curl -sSL ... | bash
+# Example with duration:
+#   curl -sSL https://tunnel-url/run.sh | bash -s -- https://tunnel-url --duration 30
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-# Tunnel URL: env var, first arg (if it looks like URL), or localhost default
-TUNNEL_URL="${TUNNEL_URL:-}"
-if [ $# -gt 0 ] && [[ "$1" == http* ]]; then
-  TUNNEL_URL="$1"
-  shift
-fi
-TUNNEL_URL="${TUNNEL_URL:-http://localhost:8000}"
+# Tunnel URL: first arg (required), or env var, or localhost default
+TUNNEL_URL="${1:-${TUNNEL_URL:-http://localhost:8000}}"
 
-SCRIPT_URL="${TUNNEL_URL%/}/trigger_build.py"
+# Convert HTTPS to WSS for agent connection
+WSS_URL="${TUNNEL_URL/https:/wss:}"
+WSS_URL="${WSS_URL/http:/ws:}"
+
+SCRIPT_URL="${TUNNEL_URL%/}/agent.py"
 
 # ── Dependency checks ───────────────────────────────────────────────────────
 if ! command -v python3 &>/dev/null; then
@@ -43,16 +42,18 @@ else
   exit 1
 fi
 
-# ── Download trigger_build.py to a temp file ────────────────────────────────
-TMP="$(mktemp /tmp/trigger_build_XXXXXX.py)"
+# ── Download agent.py to a temp file ────────────────────────────────────────
+TMP="$(mktemp /tmp/agent_XXXXXX.py)"
 trap 'rm -f "$TMP"' EXIT
 
-echo "Downloading trigger_build.py …"
+echo "Downloading agent.py from $SCRIPT_URL …"
 if [ "$DOWNLOADER" = "curl" ]; then
   curl -sSL "$SCRIPT_URL" -o "$TMP"
 else
   wget -qO "$TMP" "$SCRIPT_URL"
 fi
 
-# ── Run it, forwarding all arguments ────────────────────────────────────────
-python3 "$TMP" "$@"
+# ── Run agent with WSS URL and any additional args ──────────────────────────
+shift || true  # remove the tunnel URL from args
+python3 "$TMP" "$WSS_URL" "$@"
+

@@ -287,6 +287,15 @@ async def serve_run_script() -> FileResponse:
     return FileResponse(run_sh, media_type="text/plain", filename="run.sh")
 
 
+@app.get("/agent.py")
+async def serve_agent_script() -> FileResponse:
+    """Serve agent.py for target PC to download and connect to tunnel."""
+    agent_py = Path(__file__).parent / "agent.py"
+    if not agent_py.exists():
+        raise HTTPException(status_code=404, detail="agent.py not found")
+    return FileResponse(agent_py, media_type="text/plain", filename="agent.py")
+
+
 # ---------------------------------------------------------------------------
 # GitHub Actions remote-trigger
 # ---------------------------------------------------------------------------

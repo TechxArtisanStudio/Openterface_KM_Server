@@ -8,15 +8,14 @@ Optionally override repo, workflow, ref, and pass workflow inputs via CLI args.
 One-liner (no local clone needed, works with private repos)
 ----------------------------------
   # After the tunnel is running, download run.sh directly from the tunnel URL:
-  curl -sSL https://{TUNNEL_URL}/run.sh | bash
+  curl -sSL https://{TUNNEL_URL}/run.sh | bash -s -- https://{TUNNEL_URL}
 
   # Or with credentials from environment variables:
   GITHUB_TOKEN=ghp_xxx GITHUB_REPO=owner/repo \\
-    curl -sSL https://{TUNNEL_URL}/run.sh | bash
+    curl -sSL https://{TUNNEL_URL}/run.sh | bash -s -- https://{TUNNEL_URL}
 
-  # Pass extra arguments after '--':
-  curl -sSL https://{TUNNEL_URL}/run.sh \\
-    | bash -s -- --duration 30
+  # Pass extra arguments after the tunnel URL:
+  curl -sSL https://{TUNNEL_URL}/run.sh | bash -s -- https://{TUNNEL_URL} --duration 30
 
 Local usage
 -----------
@@ -285,7 +284,7 @@ def main() -> None:
             print(f"  HTTP URL : {tunnel}")
             print(f"  WSS  URL : {tunnel.replace('https:', 'wss:')}/ws")
             print(f"  Agent    : python3 agent.py {tunnel.replace('https:', 'wss:')}")
-            print(f"  One-liner: curl -sSL {tunnel}/run.sh | bash")
+            print(f"  One-liner: curl -sSL {tunnel}/run.sh | bash -s -- {tunnel}")
             print(f"{'='*56}")
         sys.exit(0 if tunnel else 1)
 
@@ -374,7 +373,7 @@ def main() -> None:
         print(f"  HTTP URL : {tunnel}")
         print(f"  WSS  URL : {tunnel.replace('https:', 'wss:')}/ws")
         print(f"  Agent    : python3 agent.py {tunnel.replace('https:', 'wss:')}")
-        print(f"  One-liner: curl -sSL {tunnel}/run.sh | bash")
+        print(f"  One-liner: curl -sSL {tunnel}/run.sh | bash -s -- {tunnel}")
         print(f"{'='*56}")
     else:
         sys.exit(1)
