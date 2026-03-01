@@ -147,6 +147,8 @@
             }
             // Reset built-in macros to match the agent OS
             applyDefaultMacrosForOS(targetOS);
+            // Update virtual keyboard Win/Cmd/Super label
+            if (window._vkUpdateMetaLabel) window._vkUpdateMetaLabel();
             banner(`\r\n\x1b[0;36m  ✓ Switched to ${targetOS.toUpperCase()} shortcuts\x1b[0m\r\n`);
           }
         } else if (msg.type === 'session_info') {
@@ -522,6 +524,7 @@
         localStorage.setItem('km_target_os', targetOS);
         applyDefaultMacrosForOS(targetOS);
         renderSysTab();
+        if (window._vkUpdateMetaLabel) window._vkUpdateMetaLabel();
         term.focus();
       });
       osSel.appendChild(btn);
@@ -866,4 +869,118 @@
 
   /* auto-focus terminal on load */
   term.focus();
+
+  /* ------------------------------------------------------------------ */
+  /* Virtual Keyboard                                                     */
+  /* ------------------------------------------------------------------ */
+  (function initVirtualKeyboard() {
+    // Active modifier keys (ctrl, shift, alt, meta)
+    const _vkMods = new Set();
+
+    // Modifier key mappings per OS
+    const META_LABEL = () => {
+      if (targetOS === 'macos')  return '⌘ Cmd';
+      if (targetOS === 'linux')  return '❖ Super';
+      return '⊞ Win';
+    };
+
+    function updateMetaLabel() {
+      document.querySelectorAll('.vkbd-key[data-mod="meta"]').forEach(el => {
+        el.textContent = META_LABEL();
+      });
+    }
+
+    function toggleMod(modName) {
+      if (_vkMods.has(modName)) {
+        _vkMods.delete(modName);
+      } else {
+        _vkMods.add(modName);
+      }
+      refreshModHighlights();
+    }
+
+    function refreshModHighlights() {
+      document.querySelectorAll('.vkbd-key[data-mod]').forEach(el => {
+        const mod = el.dataset.mod;
+        el.classList.toggle('mod-on', _vkMods.has(mod));
+      });
+    }
+
+    function sendVkKey(keyName) {
+      if (!keyName) return;
+      const parts = [..._vkMods];
+      // map 'meta' → agent-recognised name
+      const mapped = parts.map(m => m === 'meta' ? 'win' : m);
+      mapped.push(keyName === ' ' ? 'space' : keyName);
+      const combo = mapped.join('+');
+      sendHotkey(combo);
+      // auto-release mods after use (non-caps)
+      _vkMods.clear();
+      refreshModHighlights();
+    }
+
+    // Attach click handlers to all virtual keys
+    function attachVkHandlers() {
+      const vkbd = document.getElementById('vkbd');
+      if (!vkbd) return;
+
+      vkbd.querySelectorAll('.vkbd-key').forEach(el => {
+        el.addEventListener('click', () => {
+          const mod = el.dataset.mod;
+          if (mod) {
+            toggleMod(mod);
+          } else {
+            const key = el.dataset.key;
+            // If shift is active and key has a shift label, use shifted char
+            if (_vkMods.has('shift') && el.dataset.shift) {
+              _vkMods.delete('shift');
+              sendHotkey(el.dataset.shift);
+              refreshModHighlights();
+            } else {
+              sendVkKey(key);
+            }
+          }
+        });
+
+        // Show shift label if key has one
+        if (el.dataset.shift) {
+          const mainLabel = el.dataset.label || el.dataset.key;
+          el.innerHTML = `<span class="vkbd-shift-label">${el.dataset.shift}</span>${mainLabel}`;
+        } else {
+          el.textContent = el.dataset.label || el.dataset.key || '';
+        }
+      });
+    }
+
+    // Toggle between terminal and virtual keyboard
+    const btnKbd  = document.getElementById('btn-kbd-toggle');
+    const vkbdEl  = document.getElementById('vkbd');
+    const termEl  = document.getElementById('terminal');
+
+    let kbdVisible = false;
+    let handlersAttached = false;
+
+    if (btnKbd && vkbdEl && termEl) {
+      btnKbd.addEventListener('click', () => {
+        kbdVisible = !kbdVisible;
+        vkbdEl.classList.toggle('hidden', !kbdVisible);
+        termEl.classList.toggle('kbd-hidden', kbdVisible);
+        btnKbd.classList.toggle('active', kbdVisible);
+        if (kbdVisible) {
+          updateMetaLabel();
+          if (!handlersAttached) {
+            attachVkHandlers();
+            handlersAttached = true;
+          }
+          refreshModHighlights();
+        } else {
+          term.focus();
+        }
+      });
+    }
+
+    // Re-label Win/Cmd/Super when OS changes
+    const _origRenderSysTab = typeof renderSysTab === 'function' ? renderSysTab : null;
+    window._vkUpdateMetaLabel = updateMetaLabel;
+  })();
 })();

@@ -49,6 +49,12 @@
       Clear
     </button>
 
+    <!-- keyboard toggle -->
+    <button class="tb-btn" id="btn-kbd-toggle" title="Toggle virtual keyboard">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="4" width="14" height="9" rx="1.5"/><line x1="4" y1="7" x2="4" y2="7" stroke-width="2.5" stroke-linecap="round"/><line x1="7" y1="7" x2="7" y2="7" stroke-width="2.5" stroke-linecap="round"/><line x1="10" y1="7" x2="10" y2="7" stroke-width="2.5" stroke-linecap="round"/><line x1="4" y1="10" x2="4" y2="10" stroke-width="2.5" stroke-linecap="round"/><line x1="7" y1="10" x2="10" y2="10" stroke-width="2.5" stroke-linecap="round"/><line x1="13" y1="7" x2="13" y2="7" stroke-width="2.5" stroke-linecap="round"/><line x1="13" y1="10" x2="13" y2="10" stroke-width="2.5" stroke-linecap="round"/></svg>
+      Keyboard
+    </button>
+
     <!-- screenshot -->
     <button class="tb-btn" id="btn-screenshot" title="Request screenshot from target PC">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="14" height="11" rx="1.5"/><circle cx="8" cy="8.5" r="2.5"/><path d="M5 3 L5.8 1 L10.2 1 L11 3" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -81,6 +87,109 @@
   </div>
 
   <div id="terminal"></div>
+
+  <!-- VIRTUAL KEYBOARD -->
+  <div id="vkbd" class="hidden">
+    <div class="vkbd-inner">
+      <!-- Row 0: Esc + Function keys -->
+      <div class="vkbd-row">
+        <div class="vkbd-key" data-key="esc" data-label="Esc"></div>
+        <div class="vkbd-gap"></div>
+        <div class="vkbd-key" data-key="f1"  data-label="F1"></div>
+        <div class="vkbd-key" data-key="f2"  data-label="F2"></div>
+        <div class="vkbd-key" data-key="f3"  data-label="F3"></div>
+        <div class="vkbd-key" data-key="f4"  data-label="F4"></div>
+        <div class="vkbd-gap-sm"></div>
+        <div class="vkbd-key" data-key="f5"  data-label="F5"></div>
+        <div class="vkbd-key" data-key="f6"  data-label="F6"></div>
+        <div class="vkbd-key" data-key="f7"  data-label="F7"></div>
+        <div class="vkbd-key" data-key="f8"  data-label="F8"></div>
+        <div class="vkbd-gap-sm"></div>
+        <div class="vkbd-key" data-key="f9"  data-label="F9"></div>
+        <div class="vkbd-key" data-key="f10" data-label="F10"></div>
+        <div class="vkbd-key" data-key="f11" data-label="F11"></div>
+        <div class="vkbd-key" data-key="f12" data-label="F12"></div>
+      </div>
+      <!-- Row 1: Number row -->
+      <div class="vkbd-row">
+        <div class="vkbd-key" data-key="`"   data-label="`" data-shift="~"></div>
+        <div class="vkbd-key" data-key="1"   data-label="1" data-shift="!"></div>
+        <div class="vkbd-key" data-key="2"   data-label="2" data-shift="@"></div>
+        <div class="vkbd-key" data-key="3"   data-label="3" data-shift="#"></div>
+        <div class="vkbd-key" data-key="4"   data-label="4" data-shift="$"></div>
+        <div class="vkbd-key" data-key="5"   data-label="5" data-shift="%"></div>
+        <div class="vkbd-key" data-key="6"   data-label="6" data-shift="^"></div>
+        <div class="vkbd-key" data-key="7"   data-label="7" data-shift="&amp;"></div>
+        <div class="vkbd-key" data-key="8"   data-label="8" data-shift="*"></div>
+        <div class="vkbd-key" data-key="9"   data-label="9" data-shift="("></div>
+        <div class="vkbd-key" data-key="0"   data-label="0" data-shift=")"></div>
+        <div class="vkbd-key" data-key="-"   data-label="-" data-shift="_"></div>
+        <div class="vkbd-key" data-key="="   data-label="=" data-shift="+"></div>
+        <div class="vkbd-key vkbd-wide" data-key="backspace" data-label="⌫ Backspace"></div>
+      </div>
+      <!-- Row 2: QWERTY -->
+      <div class="vkbd-row">
+        <div class="vkbd-key vkbd-wide" data-key="tab" data-label="Tab ⇥"></div>
+        <div class="vkbd-key" data-key="q" data-label="Q"></div>
+        <div class="vkbd-key" data-key="w" data-label="W"></div>
+        <div class="vkbd-key" data-key="e" data-label="E"></div>
+        <div class="vkbd-key" data-key="r" data-label="R"></div>
+        <div class="vkbd-key" data-key="t" data-label="T"></div>
+        <div class="vkbd-key" data-key="y" data-label="Y"></div>
+        <div class="vkbd-key" data-key="u" data-label="U"></div>
+        <div class="vkbd-key" data-key="i" data-label="I"></div>
+        <div class="vkbd-key" data-key="o" data-label="O"></div>
+        <div class="vkbd-key" data-key="p" data-label="P"></div>
+        <div class="vkbd-key" data-key="[" data-label="[" data-shift="{"></div>
+        <div class="vkbd-key" data-key="]" data-label="]" data-shift="}"></div>
+        <div class="vkbd-key vkbd-wide" data-key="\\" data-label="\\"></div>
+      </div>
+      <!-- Row 3: Home row -->
+      <div class="vkbd-row">
+        <div class="vkbd-key vkbd-mod vkbd-wider" data-mod="caps" data-label="Caps Lock"></div>
+        <div class="vkbd-key" data-key="a" data-label="A"></div>
+        <div class="vkbd-key" data-key="s" data-label="S"></div>
+        <div class="vkbd-key" data-key="d" data-label="D"></div>
+        <div class="vkbd-key" data-key="f" data-label="F"></div>
+        <div class="vkbd-key" data-key="g" data-label="G"></div>
+        <div class="vkbd-key" data-key="h" data-label="H"></div>
+        <div class="vkbd-key" data-key="j" data-label="J"></div>
+        <div class="vkbd-key" data-key="k" data-label="K"></div>
+        <div class="vkbd-key" data-key="l" data-label="L"></div>
+        <div class="vkbd-key" data-key=";" data-label=";" data-shift=":"></div>
+        <div class="vkbd-key" data-key="'" data-label="'" data-shift='"'></div>
+        <div class="vkbd-key vkbd-xwide" data-key="enter" data-label="Enter ↵"></div>
+      </div>
+      <!-- Row 4: Shift row -->
+      <div class="vkbd-row">
+        <div class="vkbd-key vkbd-mod vkbd-xwide" data-mod="shift" data-label="⇧ Shift"></div>
+        <div class="vkbd-key" data-key="z" data-label="Z"></div>
+        <div class="vkbd-key" data-key="x" data-label="X"></div>
+        <div class="vkbd-key" data-key="c" data-label="C"></div>
+        <div class="vkbd-key" data-key="v" data-label="V"></div>
+        <div class="vkbd-key" data-key="b" data-label="B"></div>
+        <div class="vkbd-key" data-key="n" data-label="N"></div>
+        <div class="vkbd-key" data-key="m" data-label="M"></div>
+        <div class="vkbd-key" data-key="," data-label="," data-shift="&lt;"></div>
+        <div class="vkbd-key" data-key="." data-label="." data-shift="&gt;"></div>
+        <div class="vkbd-key" data-key="/" data-label="/" data-shift="?"></div>
+        <div class="vkbd-key vkbd-mod vkbd-xwide" data-mod="shift" data-label="⇧ Shift"></div>
+      </div>
+      <!-- Row 5: Bottom row -->
+      <div class="vkbd-row">
+        <div class="vkbd-key vkbd-mod vkbd-wide" data-mod="ctrl"  data-label="Ctrl"></div>
+        <div class="vkbd-key vkbd-mod" data-mod="meta" data-label="⊞ Win"></div>
+        <div class="vkbd-key vkbd-mod vkbd-wide" data-mod="alt"   data-label="Alt"></div>
+        <div class="vkbd-key vkbd-space" data-key=" " data-label="Space"></div>
+        <div class="vkbd-key vkbd-mod vkbd-wide" data-mod="alt"   data-label="Alt"></div>
+        <div class="vkbd-key vkbd-mod vkbd-wide" data-mod="ctrl"  data-label="Ctrl"></div>
+        <div class="vkbd-key" data-key="left"  data-label="←"></div>
+        <div class="vkbd-key" data-key="up"    data-label="↑"></div>
+        <div class="vkbd-key" data-key="down"  data-label="↓"></div>
+        <div class="vkbd-key" data-key="right" data-label="→"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- INPUT PANEL -->
   <div id="input-panel">

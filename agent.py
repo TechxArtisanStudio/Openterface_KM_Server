@@ -478,11 +478,58 @@ async def capture_and_send_screenshot(ws) -> None:
             pass
 
 
+# ---------------------------------------------------------------------------
+# Dynamic key name → pynput Key/KeyCode resolver
+# ---------------------------------------------------------------------------
+_KEY_NAME_MAP: dict[str, Key | KeyCode] = {
+    "ctrl": Key.ctrl, "control": Key.ctrl,
+    "ctrl_l": Key.ctrl_l, "ctrl_r": Key.ctrl_r,
+    "shift": Key.shift, "shift_l": Key.shift, "shift_r": Key.shift_r,
+    "alt": Key.alt, "alt_l": Key.alt, "option": Key.alt,
+    "cmd": Key.cmd, "win": Key.cmd, "super": Key.cmd,
+    "meta": Key.cmd,
+    "esc": Key.esc, "escape": Key.esc,
+    "backspace": Key.backspace,
+    "tab": Key.tab,
+    "enter": Key.enter, "return": Key.enter,
+    "delete": Key.delete, "del": Key.delete,
+    "home": Key.home,
+    "end": Key.end,
+    "pgup": Key.page_up, "pageup": Key.page_up, "page_up": Key.page_up,
+    "pgdn": Key.page_down, "pagedown": Key.page_down, "page_down": Key.page_down,
+    "up": Key.up, "down": Key.down, "left": Key.left, "right": Key.right,
+    "space": Key.space,
+    "f1": Key.f1, "f2": Key.f2, "f3": Key.f3, "f4": Key.f4,
+    "f5": Key.f5, "f6": Key.f6, "f7": Key.f7, "f8": Key.f8,
+    "f9": Key.f9, "f10": Key.f10, "f11": Key.f11, "f12": Key.f12,
+    "caps_lock": Key.caps_lock, "caps": Key.caps_lock,
+    "insert": getattr(Key, "insert", None),
+    "opt": Key.alt, "option": Key.alt,
+}
+
+def _resolve_key(part: str) -> Key | KeyCode | None:
+    part = part.strip().lower()
+    if part in _KEY_NAME_MAP:
+        return _KEY_NAME_MAP[part]
+    if len(part) == 1:
+        return KeyCode.from_char(part)
+    return None
+
+
 def handle_hotkey(combo: str) -> None:
-    keys = HOTKEY_MAP.get(combo.lower())
-    if not keys:
-        log.warning("Unknown hotkey combo: %r", combo)
-        return
+    # First try the static HOTKEY_MAP
+    keys_static = HOTKEY_MAP.get(combo.lower())
+    if keys_static:
+        keys = keys_static
+    else:
+        # Dynamically parse combo like "ctrl+c", "shift+tab", "ctrl+shift+t"
+        parts = [p.strip() for p in combo.lower().split("+")]
+        keys = [_resolve_key(p) for p in parts]
+        keys = [k for k in keys if k is not None]
+        if not keys:
+            log.warning("Unknown hotkey combo: %r", combo)
+            return
+
     try:
         pressed = []
         for k in keys:
