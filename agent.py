@@ -27,6 +27,7 @@ import platform
 import struct
 import subprocess
 import sys
+import time
 
 import base64
 import io
@@ -482,10 +483,10 @@ async def capture_and_send_screenshot(ws) -> None:
 # Dynamic key name → pynput Key/KeyCode resolver
 # ---------------------------------------------------------------------------
 _KEY_NAME_MAP: dict[str, Key | KeyCode] = {
-    "ctrl": Key.ctrl, "control": Key.ctrl,
+    "ctrl": Key.ctrl_l, "control": Key.ctrl_l,
     "ctrl_l": Key.ctrl_l, "ctrl_r": Key.ctrl_r,
-    "shift": Key.shift, "shift_l": Key.shift, "shift_r": Key.shift_r,
-    "alt": Key.alt, "alt_l": Key.alt, "option": Key.alt,
+    "shift": Key.shift_l, "shift_l": Key.shift_l, "shift_r": Key.shift_r,
+    "alt": Key.alt_l, "alt_l": Key.alt_l, "option": Key.alt_l,
     "cmd": Key.cmd, "win": Key.cmd, "super": Key.cmd,
     "meta": Key.cmd,
     "esc": Key.esc, "escape": Key.esc,
@@ -504,7 +505,7 @@ _KEY_NAME_MAP: dict[str, Key | KeyCode] = {
     "f9": Key.f9, "f10": Key.f10, "f11": Key.f11, "f12": Key.f12,
     "caps_lock": Key.caps_lock, "caps": Key.caps_lock,
     "insert": getattr(Key, "insert", None),
-    "opt": Key.alt, "option": Key.alt,
+    "opt": Key.alt_l,
 }
 
 def _resolve_key(part: str) -> Key | KeyCode | None:
@@ -535,8 +536,14 @@ def handle_hotkey(combo: str) -> None:
         for k in keys:
             keyboard.press(k)
             pressed.append(k)
+            time.sleep(0.012)
+
+        # Give the OS shortcut handler a small window to observe the combo.
+        time.sleep(0.035)
+
         for k in reversed(pressed):
             keyboard.release(k)
+            time.sleep(0.008)
         log.debug("Hotkey: %s", combo)
     except Exception as exc:
         log.warning("Hotkey error (%s): %s", combo, exc)

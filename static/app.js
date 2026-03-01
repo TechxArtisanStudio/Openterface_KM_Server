@@ -1,50 +1,17 @@
 (() => {
   /* ------------------------------------------------------------------ */
-  /* Terminal                                                             */
+  /* UI helpers                                                           */
   /* ------------------------------------------------------------------ */
-  let fontSize = 14;
+  function focusPrimaryInput() {
+    const masked = document.getElementById('masked-input');
+    const plain = document.getElementById('text-input');
+    const target = (masked && masked.style.display !== 'none') ? masked : plain;
+    if (target) target.focus();
+  }
 
-  const term = new Terminal({
-    cursorBlink: true,
-    fontSize,
-    fontFamily: "'Cascadia Code','Fira Code','Consolas',monospace",
-    scrollback: 5000,
-    theme: {
-      background:   '#0d0f14',
-      foreground:   '#c9d1e0',
-      cursor:       '#e94560',
-      cursorAccent: '#0d0f14',
-      selection:    '#2d3550',
-      black:        '#1c2030',
-      red:          '#e94560',
-      green:        '#3ddc84',
-      yellow:       '#ffb74d',
-      blue:         '#5c9eff',
-      magenta:      '#c084fc',
-      cyan:         '#22d3ee',
-      white:        '#c9d1e0',
-      brightBlack:  '#3d4560',
-      brightRed:    '#ff6b81',
-      brightGreen:  '#6ee7b7',
-      brightYellow: '#fde68a',
-      brightBlue:   '#93c5fd',
-      brightMagenta:'#d8b4fe',
-      brightCyan:   '#67e8f9',
-      brightWhite:  '#f1f5f9',
-    },
-  });
-
-  const fitAddon = new FitAddon.FitAddon();
-  term.loadAddon(fitAddon);
-  term.open(document.getElementById('terminal'));
-  fitAddon.fit();
-  window.addEventListener('resize', () => fitAddon.fit());
-
-  function setFontSize(n) {
-    fontSize = Math.min(24, Math.max(8, n));
-    term.options.fontSize = fontSize;
-    document.getElementById('font-size-display').textContent = fontSize;
-    fitAddon.fit();
+  function banner(line) {
+    const plain = String(line || '').replace(/\x1b\[[0-9;]*m/g, '').replace(/\r\n?|\n/g, ' ').trim();
+    if (plain) console.debug('[KeyMod]', plain);
   }
 
   /* ------------------------------------------------------------------ */
@@ -105,8 +72,6 @@
     prevAgentCount = count;
   }
 
-  function banner(line) { term.writeln(line); }
-
   function connect() {
     setServerStatus('wait');
     ws = new WebSocket(wsUrl);
@@ -164,12 +129,6 @@
           }
         } else if (msg.type === 'ack') {
           if (_pendingAck.has(msg.id)) { _pendingAck.delete(msg.id); showAck(); }
-        } else if (msg.type === 'echo') {
-          term.write(msg.data);
-        } else if (msg.type === 'terminal_output') {
-          // Terminal mode: agent sends output back
-          term.write(msg.data);
-          incSent();
         } else if (msg.type === 'screenshot') {
           const overlay = document.getElementById('screenshot-overlay');
           const img     = document.getElementById('screenshot-img');
@@ -180,13 +139,24 @@
           errDiv.style.display  = 'none';
           img.src = msg.data;
           img.style.display = 'block';
+          meta.textContent = msg.width + '×' + msg.height;
+          lastScreenshotData = msg;
+          renderPinnedScreenshot(msg);
+          img.style.display = 'block';
           meta.textContent = msg.width + '\u00d7' + msg.height;
           overlay.classList.add('show');
           lastScreenshotData = msg;  // store for pinning
         } else if (msg.type === 'screenshot_error') {
           const overlay = document.getElementById('screenshot-overlay');
           const spinner = document.getElementById('screenshot-spinner');
-          const errDiv  = document.getElementById('screenshot-err');
+          const pinnedEmpty = document.getElementById('screenshot-pinned-empty');
+          const pinnedMeta = document.getElementById('screenshot-pinned-meta');
+          if (pinnedEmpty) {
+            pinnedEmpty.textContent = '⚠ ' + (msg.error || 'Screenshot failed');
+            pinnedEmpty.style.display = 'block';
+          }
+          if (pinnedMeta) pinnedMeta.textContent = '';
+          overlay.classList.remove('show');
           spinner.style.display = 'none';
           errDiv.textContent    = '\u26a0 ' + (msg.error || 'Screenshot failed');
           errDiv.style.display  = 'block';
@@ -211,96 +181,185 @@
   connect();
 
   /* ------------------------------------------------------------------ */
-  /* Key input                                                            */
-  /* ------------------------------------------------------------------ */
-  // _sendLock prevents a feedback loop when the agent runs on the same
-  // machine as the browser: pynput injects keystrokes back into the
-  // focused browser window, which would re-trigger onData indefinitely.
-  let _sendLock = false;
-  let _sendLockTimer = null;
-
-  term.onData((data) => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    if (_sendLock) return;          // drop echoed-back keystroke
-    ws.send(JSON.stringify({ type: 'key', data }));
-    incSent();
-    // Hold the lock for 200 ms – enough time for the injected keystroke
-    // to reach and be consumed, but short enough not to feel laggy.
-    _sendLock = true;
-    clearTimeout(_sendLockTimer);
-    _sendLockTimer = setTimeout(() => { _sendLock = false; }, 200);
-  });
-
-  /* ------------------------------------------------------------------ */
   /* Toolbar buttons                                                      */
   /* ------------------------------------------------------------------ */
-  document.getElementById('btn-font-dec').onclick = () => setFontSize(fontSize - 1);
-  document.getElementById('btn-font-inc').onclick = () => setFontSize(fontSize + 1);
-
-  document.getElementById('btn-clear').onclick = () => {
-    term.clear();
-    term.focus();
-  };
 
   const helpOverlay = document.getElementById('help-overlay');
   // Screenshot
   const screenshotOverlay = document.getElementById('screenshot-overlay');
-  const screenshotPinned  = document.getElementById('screenshot-pinned');
   let lastScreenshotData  = null;  // store current screenshot for pinning
+
+  function renderPinnedScreenshot(data) {
+    const pinnedImg   = document.getElementById('screenshot-pinned-img');
+    const pinnedMeta  = document.getElementById('screenshot-pinned-meta');
+    const pinnedEmpty = document.getElementById('screenshot-pinned-empty');
+    if (!pinnedImg || !pinnedMeta || !pinnedEmpty || !data) return;
+    pinnedImg.src = data.data;
+    pinnedImg.style.display = 'block';
+    pinnedMeta.textContent = data.width + '×' + data.height;
+    pinnedEmpty.style.display = 'none';
+  }
+
+  function clearPinnedScreenshot(message = 'Click Refresh to retrieve target screen') {
+    const pinnedImg   = document.getElementById('screenshot-pinned-img');
+    const pinnedMeta  = document.getElementById('screenshot-pinned-meta');
+    const pinnedEmpty = document.getElementById('screenshot-pinned-empty');
+    if (pinnedImg) {
+      pinnedImg.removeAttribute('src');
+      pinnedImg.style.display = 'none';
+    }
+    if (pinnedMeta) pinnedMeta.textContent = '';
+    if (pinnedEmpty) {
+      pinnedEmpty.textContent = message;
+      pinnedEmpty.style.display = 'block';
+    }
+  }
   
-  function openScreenshot() {
+  function requestPinnedScreenshot() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    const spinner = document.getElementById('screenshot-spinner');
-    const img     = document.getElementById('screenshot-img');
-    const errDiv  = document.getElementById('screenshot-err');
-    spinner.style.display = 'block';
-    img.style.display     = 'none';
-    errDiv.style.display  = 'none';
-    document.getElementById('screenshot-meta').textContent = '';
-    screenshotOverlay.classList.add('show');
+    clearPinnedScreenshot('Retrieving screenshot…');
+    screenshotOverlay.classList.remove('show');
     ws.send(JSON.stringify({ type: 'screenshot_request' }));
     incSent();
   }
-  document.getElementById('btn-screenshot').onclick = openScreenshot;
-  document.getElementById('btn-screenshot-refresh').onclick = openScreenshot;
+  document.getElementById('btn-screenshot').onclick = requestPinnedScreenshot;
+  document.getElementById('btn-screenshot-refresh').onclick = requestPinnedScreenshot;
   
   // Pin button: copy screenshot to pinned section and close modal
   document.getElementById('btn-screenshot-pin').onclick = () => {
     if (!lastScreenshotData) return;
-    const pinnedImg  = document.getElementById('screenshot-pinned-img');
-    const pinnedMeta = document.getElementById('screenshot-pinned-meta');
-    pinnedImg.src = lastScreenshotData.data;
-    pinnedImg.style.display = 'block';
-    pinnedMeta.textContent = lastScreenshotData.width + '\u00d7' + lastScreenshotData.height;
-    screenshotPinned.classList.remove('hidden');
+    renderPinnedScreenshot(lastScreenshotData);
     screenshotOverlay.classList.remove('show');
-    term.focus();
+    focusPrimaryInput();
   };
   
-  // Unpin button: hide pinned section
+  // Clear button: clear only the current image, keep top panel visible
   document.getElementById('btn-screenshot-unpin').onclick = () => {
-    screenshotPinned.classList.add('hidden');
-    term.focus();
+    clearPinnedScreenshot();
+    focusPrimaryInput();
   };
   
   // Refresh button in pinned section
-  document.getElementById('btn-screenshot-refresh-pinned').onclick = openScreenshot;
-  document.getElementById('btn-screenshot-close').onclick = () => { screenshotOverlay.classList.remove('show'); term.focus(); };
-  screenshotOverlay.addEventListener('click', (e) => { if (e.target === screenshotOverlay) { screenshotOverlay.classList.remove('show'); term.focus(); } });
+  document.getElementById('btn-screenshot-refresh-pinned').onclick = requestPinnedScreenshot;
+  document.getElementById('btn-screenshot-close').onclick = () => { screenshotOverlay.classList.remove('show'); focusPrimaryInput(); };
+  screenshotOverlay.addEventListener('click', (e) => { if (e.target === screenshotOverlay) { screenshotOverlay.classList.remove('show'); focusPrimaryInput(); } });
 
   document.getElementById('btn-help').onclick      = () => { helpOverlay.classList.add('show'); };
-  document.getElementById('btn-help-close').onclick = () => { helpOverlay.classList.remove('show'); term.focus(); };
-  helpOverlay.addEventListener('click', (e) => { if (e.target === helpOverlay) { helpOverlay.classList.remove('show'); term.focus(); } });
+  document.getElementById('btn-help-close').onclick = () => { helpOverlay.classList.remove('show'); focusPrimaryInput(); };
+  helpOverlay.addEventListener('click', (e) => { if (e.target === helpOverlay) { helpOverlay.classList.remove('show'); focusPrimaryInput(); } });
 
   /* ------------------------------------------------------------------ */
   /* Global keyboard shortcuts                                            */
   /* ------------------------------------------------------------------ */
+  const KEY_DEBUG = true;
+  function keyLog(...args) {
+    if (!KEY_DEBUG) return;
+    console.debug('[KM-KEY]', ...args);
+  }
+
+  function isEditableTarget(el) {
+    if (!el || !(el instanceof HTMLElement)) return false;
+    if (el.isContentEditable) return true;
+    const tag = (el.tagName || '').toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select';
+  }
+
+  function keyToToken(e) {
+    const key = e.key;
+    if (!key) return null;
+    const lower = key.toLowerCase();
+
+    if (/^f([1-9]|1[0-2])$/.test(lower)) return lower;
+
+    const special = {
+      control: 'ctrl',
+      shift: 'shift',
+      alt: 'alt',
+      meta: 'meta',
+      arrowup: 'up',
+      arrowdown: 'down',
+      arrowleft: 'left',
+      arrowright: 'right',
+      escape: 'esc',
+      enter: 'enter',
+      tab: 'tab',
+      backspace: 'backspace',
+      delete: 'delete',
+      home: 'home',
+      end: 'end',
+      pageup: 'pgup',
+      pagedown: 'pgdn',
+      insert: 'insert',
+      ' ': 'space',
+    };
+    if (special[lower]) return special[lower];
+    if (key.length === 1) return lower;
+    return null;
+  }
+
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'F1')  { e.preventDefault(); helpOverlay.classList.toggle('show'); }
-    if (e.ctrlKey && e.key === 'l') { e.preventDefault(); term.clear(); }
-    if (e.ctrlKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); setFontSize(fontSize + 1); }
-    if (e.ctrlKey && e.key === '-') { e.preventDefault(); setFontSize(fontSize - 1); }
-  });
+    keyLog('keydown', {
+      key: e.key,
+      code: e.code,
+      ctrl: e.ctrlKey,
+      alt: e.altKey,
+      shift: e.shiftKey,
+      meta: e.metaKey,
+      target: e.target && e.target.tagName,
+    });
+
+    if (e.key === 'F1') {
+      e.preventDefault();
+      helpOverlay.classList.toggle('show');
+      keyLog('handled: help toggle');
+      return;
+    }
+
+    if (isEditableTarget(e.target)) {
+      keyLog('ignored: editable target');
+      return;
+    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      keyLog('ignored: websocket not open', ws ? ws.readyState : 'no-ws');
+      return;
+    }
+
+    const token = keyToToken(e);
+    if (!token) {
+      keyLog('ignored: no token mapping for key', e.key);
+      return;
+    }
+    if (token === 'shift' || token === 'ctrl' || token === 'alt' || token === 'meta') {
+      flashVkByToken(token);
+      keyLog('ignored: modifier-only key', token);
+      return;
+    }
+
+    const mods = [];
+    if (e.ctrlKey) mods.push('ctrl');
+    if (e.altKey) mods.push('alt');
+    if (e.metaKey) mods.push('win');
+    if (e.shiftKey && token.length > 1) mods.push('shift');
+
+    if (mods.length > 0) {
+      e.preventDefault();
+      const combo = mods.concat(token).join('+');
+      keyLog('sendHotkey from keydown', combo);
+      sendHotkey(combo);
+      return;
+    }
+
+    if (e.key.length === 1) {
+      e.preventDefault();
+      keyLog('sendRaw from keydown', JSON.stringify(e.key));
+      sendRaw(e.key);
+      return;
+    }
+
+    e.preventDefault();
+    keyLog('sendHotkey from keydown', token);
+    sendHotkey(token);
+  }, true);
 
   /* ------------------------------------------------------------------ */
   /* Quick Keys                                                           */
@@ -477,20 +536,90 @@
     _ackHideTimer = setTimeout(() => { el.style.display = 'none'; }, 2200);
   }
 
+  function flashVkByToken(token) {
+    if (!token) return;
+    const t = String(token).trim().toLowerCase();
+    const vkbd = document.getElementById('vkbd');
+    if (!vkbd) return;
+
+    let nodes = [];
+    if (t === 'win' || t === 'super' || t === 'cmd' || t === 'meta') {
+      nodes = [...vkbd.querySelectorAll('.vkbd-key[data-mod="meta"]')];
+    } else if (t === 'ctrl') {
+      nodes = [...vkbd.querySelectorAll('.vkbd-key[data-mod="ctrl"]')];
+    } else if (t === 'alt' || t === 'opt' || t === 'option') {
+      nodes = [...vkbd.querySelectorAll('.vkbd-key[data-mod="alt"]')];
+    } else if (t === 'shift') {
+      nodes = [...vkbd.querySelectorAll('.vkbd-key[data-mod="shift"]')];
+    } else {
+      const normalized = (t === 'space') ? ' ' : t;
+      const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(normalized) : normalized;
+      nodes = [...vkbd.querySelectorAll(`.vkbd-key[data-key="${escaped}"]`)];
+      if (!nodes.length && normalized.length === 1) {
+        const lower = normalized.toLowerCase();
+        const escapedLower = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(lower) : lower;
+        nodes = [...vkbd.querySelectorAll(`.vkbd-key[data-key="${escapedLower}"]`)];
+      }
+    }
+
+    nodes.forEach((el) => {
+      el.classList.add('active');
+      setTimeout(() => el.classList.remove('active'), 130);
+    });
+  }
+
+  function flashVkByCombo(combo) {
+    if (!combo) return;
+    String(combo)
+      .split('+')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .forEach(flashVkByToken);
+  }
+
+  function flashVkByRawData(data) {
+    const raw = String(data ?? '');
+    const map = {
+      '\x1b[A': ['up'],
+      '\x1b[B': ['down'],
+      '\x1b[C': ['right'],
+      '\x1b[D': ['left'],
+      '\x1b[H': ['home'],
+      '\x1b[F': ['end'],
+      '\x1b[5~': ['pgup'],
+      '\x1b[6~': ['pgdn'],
+      '\x1b[3~': ['delete'],
+      '\x1b[2~': ['insert'],
+      '\x1b': ['esc'],
+      '\t': ['tab'],
+      '\r': ['enter'],
+      '\x7f': ['backspace'],
+    };
+    if (map[raw]) {
+      map[raw].forEach(flashVkByToken);
+      return;
+    }
+    if (raw.length === 1) flashVkByToken(raw);
+  }
+
   function sendRaw(data) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const id = nextMsgId();
+    keyLog('tx key', { id, data });
     ws.send(JSON.stringify({ type: 'key', data, id }));
     _pendingAck.set(id, true);
     incSent();
+    flashVkByRawData(data);
   }
 
   function sendHotkey(combo) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const id = nextMsgId();
+    keyLog('tx hotkey', { id, combo });
     ws.send(JSON.stringify({ type: 'hotkey', combo, id }));
     _pendingAck.set(id, true);
     incSent();
+    flashVkByCombo(combo);
   }
 
   function buildQuickGrid(tabId, keys) {
@@ -503,7 +632,7 @@
       btn.addEventListener('click', () => {
         if (k.hotkey) sendHotkey(k.hotkey);
         else          sendRaw(k.data);
-        term.focus();
+        focusPrimaryInput();
       });
       grid.appendChild(btn);
     });
@@ -525,7 +654,7 @@
         applyDefaultMacrosForOS(targetOS);
         renderSysTab();
         if (window._vkUpdateMetaLabel) window._vkUpdateMetaLabel();
-        term.focus();
+        focusPrimaryInput();
       });
       osSel.appendChild(btn);
     });
@@ -552,7 +681,7 @@
       btn.addEventListener('click', () => {
         if (k.hotkey) sendHotkey(k.hotkey);
         else          sendRaw(k.data);
-        term.focus();
+        focusPrimaryInput();
       });
       grid.appendChild(btn);
     });
@@ -570,7 +699,7 @@
     });
   });
 
-  /* ------------------------------------------------------------------ */
+        focusPrimaryInput();
   /* Send history                                                         */
   /* ------------------------------------------------------------------ */
   const MAX_HISTORY = 20;
@@ -867,8 +996,8 @@
   // Prevent global shortcuts while textarea is focused
   textInput.addEventListener('keydown', (e) => e.stopPropagation());
 
-  /* auto-focus terminal on load */
-  term.focus();
+  /* auto-focus input on load */
+  focusPrimaryInput();
 
   /* ------------------------------------------------------------------ */
   /* Virtual Keyboard                                                     */
@@ -892,11 +1021,16 @@
 
     function toggleMod(modName) {
       if (_vkMods.has(modName)) {
+        // Second click on an already-staged modifier → send it as a standalone
+        // key press (e.g. Alt alone to open a menu bar) then clear.
         _vkMods.delete(modName);
+        refreshModHighlights();
+        const agentKey = modName === 'meta' ? 'win' : modName;
+        sendHotkey(agentKey);
       } else {
         _vkMods.add(modName);
+        refreshModHighlights();
       }
-      refreshModHighlights();
     }
 
     function refreshModHighlights() {
@@ -952,31 +1086,19 @@
       });
     }
 
-    // Toggle between terminal and virtual keyboard
-    const btnKbd  = document.getElementById('btn-kbd-toggle');
+    // Keyboard-first default layout (terminal stays hidden)
     const vkbdEl  = document.getElementById('vkbd');
-    const termEl  = document.getElementById('terminal');
 
-    let kbdVisible = false;
     let handlersAttached = false;
 
-    if (btnKbd && vkbdEl && termEl) {
-      btnKbd.addEventListener('click', () => {
-        kbdVisible = !kbdVisible;
-        vkbdEl.classList.toggle('hidden', !kbdVisible);
-        termEl.classList.toggle('kbd-hidden', kbdVisible);
-        btnKbd.classList.toggle('active', kbdVisible);
-        if (kbdVisible) {
-          updateMetaLabel();
-          if (!handlersAttached) {
-            attachVkHandlers();
-            handlersAttached = true;
-          }
-          refreshModHighlights();
-        } else {
-          term.focus();
-        }
-      });
+    if (vkbdEl) {
+      vkbdEl.classList.remove('hidden');
+      updateMetaLabel();
+      if (!handlersAttached) {
+        attachVkHandlers();
+        handlersAttached = true;
+      }
+      refreshModHighlights();
     }
 
     // Re-label Win/Cmd/Super when OS changes

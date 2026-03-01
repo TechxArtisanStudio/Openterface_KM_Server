@@ -142,6 +142,15 @@ body {
   color: var(--text);
 }
 
+/* Terminal view is removed from user-facing layout */
+#btn-font-dec,
+#btn-font-inc,
+#font-size-display,
+#btn-clear,
+.tb-divider {
+  display: none;
+}
+
 /* ---- status bar ---- */
 #statusbar {
   display: flex;
@@ -164,8 +173,12 @@ body {
   flex: 1;
   overflow: hidden;
   padding: 6px 6px 4px 6px;
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-rows: auto minmax(280px, 1fr);
+  grid-template-areas:
+    "screen panel"
+    "keyboard panel";
   gap: 6px;
 }
 #terminal { flex: 1; overflow: hidden; border-radius: var(--radius); min-width: 0; }
@@ -174,14 +187,16 @@ body {
 
 /* ---- input panel ---- */
 #input-panel {
-  width: 240px;
+  grid-area: panel;
+  width: auto;
+  height: 100%;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow: auto;
 }
 .panel-section {
   display: flex;
@@ -329,8 +344,9 @@ body {
 
 /* Pinned screenshot section (above terminal) */
 #screenshot-pinned {
+  grid-area: screen;
   margin-bottom: 6px;
-  height: 350px;
+  height: clamp(180px, 34vh, 300px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface2);
@@ -357,6 +373,12 @@ body {
   align-items: center;
   justify-content: center;
   flex: 1;
+}
+#screenshot-pinned-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 10px;
+  text-align: center;
 }
 #screenshot-pinned-img {
   max-width: 100%;
@@ -426,7 +448,11 @@ body {
 
 /* mobile */
 @media (max-width: 640px) {
-  #terminal-wrap { flex-direction: column; }
+  #terminal-wrap {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
   #input-panel {
     width: 100%; height: 220px;
     flex-direction: row; overflow: visible;
@@ -636,12 +662,14 @@ kbd {
 
 /* ── Virtual Keyboard ─────────────────────────────────── */
 #vkbd {
+  grid-area: keyboard;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
   flex: 1 1 auto;
+  min-height: 280px;
   overflow: auto;
-  padding: 8px;
+  padding: 6px;
   background: var(--surface);
 }
 #vkbd.hidden { display: none; }
@@ -649,44 +677,56 @@ kbd {
 .vkbd-inner {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   user-select: none;
+  width: 100%;
 }
 
 .vkbd-row {
   display: flex;
   flex-direction: row;
-  gap: 4px;
+  gap: 0;
   align-items: center;
+  width: 100%;
+  justify-content: stretch;
+}
+
+.vkbd-stack {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  height: clamp(34px, 3.2vw, 48px);
 }
 
 /* standard gap between groups on fn row */
-.vkbd-gap     { width: 22px; flex-shrink: 0; }
-.vkbd-gap-sm  { width: 12px; flex-shrink: 0; }
+.vkbd-gap,
+.vkbd-gap-sm  { display: none; }
 
 /* base key */
 .vkbd-key {
+  --w: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 4px;
+  min-width: 0;
+  height: clamp(34px, 3.2vw, 48px);
+  padding: 0 6px;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--text);
-  font-size: 11px;
+  font-size: clamp(10px, 1.05vw, 12px);
   line-height: 1.1;
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
   white-space: nowrap;
-  flex-shrink: 0;
+  flex: var(--w) 1 0;
   text-align: center;
+  overflow: hidden;
 }
 .vkbd-key .vkbd-shift-label {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--text-muted);
   line-height: 1;
 }
@@ -697,11 +737,19 @@ kbd {
 /* modifier locked-on */
 .vkbd-key.mod-on  { background: #1e5fb5; color: #fff; border-color: #2e7de9; }
 
+.vkbd-stack .vkbd-key.vkbd-half {
+  flex: 1 1 0;
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  line-height: 1;
+}
+
 /* width variants */
-.vkbd-wide   { min-width: 60px; }
-.vkbd-wider  { min-width: 68px; }
-.vkbd-xwide  { min-width: 84px; }
-.vkbd-space  { min-width: 200px; flex-grow: 1; }
+.vkbd-wide   { --w: 1.6; }
+.vkbd-wider  { --w: 1.9; }
+.vkbd-xwide  { --w: 2.4; }
+.vkbd-space  { --w: 6; }
 
 /* #btn-kbd-toggle active state */
 #btn-kbd-toggle.active {
