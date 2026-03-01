@@ -135,6 +135,12 @@
         }
         if (msg.type === 'agent_status') {
           setAgentStatus(msg.count);
+        } else if (msg.type === 'agent_platform') {
+          // Agent has connected from a specific OS - auto-select it and update System tab
+          targetOS = msg.platform;
+          localStorage.setItem('km_target_os', targetOS);
+          renderSysTab();
+          banner(`\r\n\x1b[0;36m  Agent connected on ${targetOS.toUpperCase()}\x1b[0m\r\n`);
         } else if (msg.type === 'session_info') {
           initCountdown(msg.expires_at, msg.duration_minutes);
         } else if (msg.type === 'window_title') {

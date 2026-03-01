@@ -578,7 +578,16 @@ async def run(server_url: str) -> None:
     while True:
         try:
             async with websockets.connect(agent_url) as ws:
-                log.info("Agent connected. Waiting for commands…")
+                # Send platform info to server so browsers know which OS we're running
+                system_name = platform.system()
+                platform_map = {
+                    "Windows": "windows",
+                    "Darwin": "macos",
+                    "Linux": "linux",
+                }
+                os_type = platform_map.get(system_name, "unknown")
+                await ws.send(json.dumps({"type": "agent_platform", "platform": os_type}))
+                log.info("Agent connected on %s. Waiting for commands…", os_type)
 
                 async def _receive() -> None:
                     async for message in ws:

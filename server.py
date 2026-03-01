@@ -80,6 +80,7 @@ class RoleManager:
     def __init__(self) -> None:
         self._controllers: list[WebSocket] = []
         self._agents: list[WebSocket] = []
+        self.agent_platform: str = "unknown"  # Track connected agent's OS
 
     # -- controllers (browsers) ------------------------------------------
     async def connect_controller(self, ws: WebSocket) -> None:
@@ -87,6 +88,11 @@ class RoleManager:
         self._controllers.append(ws)
         log.info("Controller connected  (total=%d)", len(self._controllers))
         await self._broadcast_agent_status()
+        # Send current agent platform if one is connected
+        try:
+            await ws.send_text(json.dumps({"type": "agent_platform", "platform": self.agent_platform}))
+        except Exception:
+            pass
         # Push session timing so the browser can show a countdown
         try:
             await ws.send_text(json.dumps({
@@ -201,6 +207,12 @@ class RoleManager:
 
     async def _broadcast_agent_status(self) -> None:
         msg = json.dumps({"type": "agent_status", "count": len(self._agents)})
+        await self.relay_to_controllers(msg)
+
+    async def set_agent_platform(self, platform: str) -> None:
+        """Store the agent's OS and broadcast it to all controllers."""
+        self.agent_platform = platform
+        msg = json.dumps({"type": "agent_platform", "platform": platform})
         await self.relay_to_controllers(msg)
 
     async def ping_all_controllers(self) -> None:
@@ -417,6 +429,14 @@ async def agent_ws(ws: WebSocket) -> None:
                 try:
                     msg_obj = json.loads(raw_text)
                     msg_type = msg_obj.get("type", "unknown")
+                    
+                    # Intercept agent_platform message
+                    if msg_type == "agent_platform":
+                        platform = msg_obj.get("platform", "unknown")
+                        await manager.set_agent_platform(platform)
+                        log.info("[← AGENT] Platform: %s", platform)
+                        continue  # Don't relay, just broadcast
+                    
                     log.info("[← AGENT] Received back-channel: %s", msg_type)
                 except json.JSONDecodeError:
                     log.info("[← AGENT] Received back-channel: %s", raw_text[:80])
