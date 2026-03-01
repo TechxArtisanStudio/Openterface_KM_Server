@@ -183,33 +183,33 @@ jobs:
           fi
 
       # -----------------------------------------------------------------------
-      # 5b. Store tunnel URL in GitHub Actions variables (secure, no git history)
+      # 5b. Display tunnel URL in GitHub Actions summary (not saved to repo)
       # -----------------------------------------------------------------------
-      - name: Save tunnel info to GitHub Actions variables
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Display tunnel info
         run: |
           PUBLIC_URL=$(cat /tmp/tunnel_url.txt)
           TUNNEL_TYPE=$(cat /tmp/tunnel_type.txt)
           
           echo "::notice title=TunnelURL::${PUBLIC_URL} (via ${TUNNEL_TYPE})"
           
-          # Store in GitHub Actions repository variables (secure, no git history)
-          gh variable set KEYMOD_TUNNEL_URL --body "$PUBLIC_URL"
-          gh variable set KEYMOD_TUNNEL_TYPE --body "$TUNNEL_TYPE"
-          
-          echo "Tunnel info stored in GitHub Actions variables:"
-          echo "  KEYMOD_TUNNEL_URL  = $PUBLIC_URL"
-          echo "  KEYMOD_TUNNEL_TYPE = $TUNNEL_TYPE"
-          echo ""
-          echo "============================================================"
-          echo "  TUNNEL TYPE     : $TUNNEL_TYPE"
-          echo "  PUBLIC HTTP URL : $PUBLIC_URL"
-          echo "  PUBLIC WSS URL  : ${PUBLIC_URL/https:/wss:}/ws"
-          echo "  Health-check    : curl $PUBLIC_URL/status"
-          echo "  Agent command   : python3 agent.py ${PUBLIC_URL/https:/wss:}"
-          echo "============================================================"
-          echo ""
+          # Add to GitHub Actions job summary for easy access
+          {
+            echo "## 🌐 Tunnel Information"
+            echo ""
+            echo "- **Type**: $TUNNEL_TYPE"
+            echo "- **HTTP URL**: \`$PUBLIC_URL\`"
+            echo "- **WSS URL**: \`${PUBLIC_URL/https:/wss:}/ws\`"
+            echo ""
+            echo "### Agent Command"
+            echo "\`\`\`bash"
+            echo "python3 agent.py ${PUBLIC_URL/https:/wss:}"
+            echo "\`\`\`"
+            echo ""
+            echo "### Health Check"
+            echo "\`\`\`bash"
+            echo "curl $PUBLIC_URL/status"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
 
       # -----------------------------------------------------------------------

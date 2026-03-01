@@ -112,17 +112,17 @@ def _get_latest_run(repo: str, token: str, workflow: str):
 
 def watch_for_tunnel_url(repo: str, token: str, run_id: int, dispatched_at: str = ""):
     """
-    Poll GitHub Actions repository variables KEYMOD_TUNNEL_URL and KEYMOD_TUNNEL_TYPE
-    (set by the workflow when tunnel is ready).
-    Returns (tunnel_url, tunnel_type), or (None, None) on timeout/failure.
+    Poll GitHub Actions run logs to extract tunnel URL (not saved to repo for security).
+    Also extract LocalTunnel password from run logs if present.
+    Returns (tunnel_url, tunnel_type, password), or (None, None, None) on timeout/failure.
     """
     jobs_url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/jobs"
-    var_url_base = f"https://api.github.com/repos/{repo}/actions/variables"
 
     print(f"\nWatching: https://github.com/{repo}/actions/runs/{run_id}")
-    print("Polling GitHub Actions variables (ready in ~60 s) …\n")
+    print("Polling run logs for tunnel URL (ready in ~60 s) …\n")
 
     last_step = ""
+    lt_password = None
 
     for attempt in range(70):   # poll up to ~7 minutes
         time.sleep(6)
@@ -145,30 +145,47 @@ def watch_for_tunnel_url(repo: str, token: str, run_id: int, dispatched_at: str 
                     last_step = label
                 if status == "completed" and conclusion in ("failure", "cancelled", "timed_out"):
                     print(f"\nRun ended with: {conclusion}")
-                    return None, None
+                    return None, None, None
         except Exception:
             pass
 
-        # -- Poll GitHub Actions variables --
+        # -- Extract tunnel URL from run logs --
         try:
-            # Get KEYMOD_TUNNEL_URL variable
-            url_var = _gh_get(f"{var_url_base}/KEYMOD_TUNNEL_URL", token)
-            tunnel_url = url_var.get("value", "").strip()
-            
-            if tunnel_url:
-                # Get KEYMOD_TUNNEL_TYPE variable
-                type_var = _gh_get(f"{var_url_base}/KEYMOD_TUNNEL_TYPE", token)
-                tunnel_type = type_var.get("value", "Unknown").strip()
+            # Try to get logs from the completed job
+            logs_url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/attempts/1/logs"
+            req = urllib.request.Request(
+                logs_url,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            with urllib.request.urlopen(req) as r:
+                logs_data = r.read().decode()
                 
-                return tunnel_url, tunnel_type
+                # Extract tunnel URL from logs - look for the ::notice message pattern
+                # ::notice title=TunnelURL::https://xxx.com (via Type)
+                m = _TUNNEL_RE.search(logs_data)
+                if m:
+                    public_url = m.group(0)
+                    # Determine tunnel type from URL
+                    tunnel_type = "Cloudflare" if "trycloudflare" in public_url else "LocalTunnel"
+                    
+                    # Extract LocalTunnel password if present
+                    pwd_match = re.search(r'(?:password|PASSWORD)[\s:]+([a-zA-Z0-9]+)', logs_data)
+                    if pwd_match:
+                        lt_password = pwd_match.group(1)
+                    
+                    return public_url, tunnel_type, lt_password
         except urllib.error.HTTPError as exc:
-            if exc.code != 404:
-                print(f"  [vars] HTTP {exc.code}")
-        except Exception as exc:
-            print(f"  [vars] {exc}")
+            if exc.code != 404:  # 404 = logs not available yet
+                pass
+        except Exception:
+            pass
 
     print("Timed out waiting for tunnel URL (7 min).")
-    return None, None
+    return None, None, None
 
 
 # ---------------------------------------------------------------------------
@@ -270,12 +287,14 @@ def main() -> None:
             sys.exit(1)
         run_id, html_url = result
         print(f"Latest run  : {html_url}")
-        tunnel, tunnel_type = watch_for_tunnel_url(args.repo, args.token, run_id, dispatched_at="")
+        tunnel, tunnel_type, password = watch_for_tunnel_url(args.repo, args.token, run_id, dispatched_at="")
         if tunnel:
             print(f"\n{'='*56}")
             print(f"  TUNNEL TYPE : {tunnel_type}")
             print(f"  HTTP URL    : {tunnel}")
             print(f"  WSS  URL    : {tunnel.replace('https:', 'wss:')}/ws")
+            if password:
+                print(f"  PASSWORD    : {password}")
             print(f"  Agent       : python3 agent.py {tunnel.replace('https:', 'wss:')}")
             print(f"  One-liner   : curl -sSL {tunnel}/run.sh | bash -s -- {tunnel}")
             print(f"{'='*56}")
@@ -363,12 +382,14 @@ def main() -> None:
         sys.exit(1)
 
     run_id, html_url = result
-    tunnel, tunnel_type = watch_for_tunnel_url(args.repo, args.token, run_id, dispatched_at)
+    tunnel, tunnel_type, password = watch_for_tunnel_url(args.repo, args.token, run_id, dispatched_at)
     if tunnel:
         print(f"\n{'='*56}")
         print(f"  TUNNEL TYPE : {tunnel_type}")
         print(f"  HTTP URL    : {tunnel}")
         print(f"  WSS  URL    : {tunnel.replace('https:', 'wss:')}/ws")
+        if password:
+            print(f"  PASSWORD    : {password}")
         print(f"  Agent       : python3 agent.py {tunnel.replace('https:', 'wss:')}")
         print(f"  One-liner   : curl -sSL {tunnel}/run.sh | bash -s -- {tunnel}")
         print(f"{'='*56}")
