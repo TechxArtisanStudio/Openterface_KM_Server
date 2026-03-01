@@ -43,7 +43,7 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -279,12 +279,12 @@ async def session_info() -> JSONResponse:
 
 
 @app.get("/run.sh")
-async def serve_run_script() -> str:
+async def serve_run_script() -> FileResponse:
     """Serve run.sh deployment script for one-liner invocation via Cloudflare tunnel."""
     run_sh = Path(__file__).parent / "run.sh"
     if not run_sh.exists():
         raise HTTPException(status_code=404, detail="run.sh not found")
-    return run_sh.read_text(encoding="utf-8")
+    return FileResponse(run_sh, media_type="text/plain", filename="run.sh")
 
 
 # ---------------------------------------------------------------------------

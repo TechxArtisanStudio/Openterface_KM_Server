@@ -285,6 +285,7 @@ def main() -> None:
             print(f"  HTTP URL : {tunnel}")
             print(f"  WSS  URL : {tunnel.replace('https:', 'wss:')}/ws")
             print(f"  Agent    : python3 agent.py {tunnel.replace('https:', 'wss:')}")
+            print(f"  One-liner: curl -sSL {tunnel}/run.sh | bash")
             print(f"{'='*56}")
         sys.exit(0 if tunnel else 1)
 
@@ -373,6 +374,7 @@ def main() -> None:
         print(f"  HTTP URL : {tunnel}")
         print(f"  WSS  URL : {tunnel.replace('https:', 'wss:')}/ws")
         print(f"  Agent    : python3 agent.py {tunnel.replace('https:', 'wss:')}")
+        print(f"  One-liner: curl -sSL {tunnel}/run.sh | bash")
         print(f"{'='*56}")
     else:
         sys.exit(1)

@@ -17,12 +17,13 @@
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-# Tunnel URL can be passed as env var, first arg, or defaults to localhost
-TUNNEL_URL="${TUNNEL_URL:-${1:-http://localhost:8000}}"
-# Shift off the first arg if it was the tunnel URL
+# Tunnel URL: env var, first arg (if it looks like URL), or localhost default
+TUNNEL_URL="${TUNNEL_URL:-}"
 if [ $# -gt 0 ] && [[ "$1" == http* ]]; then
+  TUNNEL_URL="$1"
   shift
 fi
+TUNNEL_URL="${TUNNEL_URL:-http://localhost:8000}"
 
 SCRIPT_URL="${TUNNEL_URL%/}/trigger_build.py"
 
