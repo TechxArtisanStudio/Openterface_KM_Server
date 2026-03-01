@@ -112,76 +112,59 @@ def _get_latest_run(repo: str, token: str, workflow: str):
 
 def watch_for_tunnel_url(repo: str, token: str, run_id: int, dispatched_at: str = ""):
     """
-    Poll GitHub Actions run logs to extract tunnel URL (not saved to repo for security).
-    Also extract LocalTunnel password from run logs if present.
+    Poll GitHub Actions job outputs to extract tunnel URL (secure, not stored in git).
+    Reads from the job outputs of the "Display tunnel info" step.
     Returns (tunnel_url, tunnel_type, password), or (None, None, None) on timeout/failure.
     """
     jobs_url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/jobs"
 
     print(f"\nWatching: https://github.com/{repo}/actions/runs/{run_id}")
-    print("Polling run logs for tunnel URL (ready in ~60 s) …\n")
+    print("Polling job outputs for tunnel URL (ready in ~60 s) …\n")
 
     last_step = ""
-    lt_password = None
 
     for attempt in range(70):   # poll up to ~7 minutes
         time.sleep(6)
 
-        # -- Progress: show current step via Jobs API --
+        # -- Poll job outputs --
         try:
             data = _gh_get(jobs_url, token)
             jobs = data.get("jobs", [])
-            if jobs:
-                job        = jobs[0]
-                status     = job["status"]
-                conclusion = job.get("conclusion")
-                steps      = job.get("steps", [])
-                current    = next(
-                    (s["name"] for s in steps if s["status"] == "in_progress"), None
-                )
-                label = current or status
-                if label != last_step:
-                    print(f"  [{status}] {label}")
-                    last_step = label
-                if status == "completed" and conclusion in ("failure", "cancelled", "timed_out"):
-                    print(f"\nRun ended with: {conclusion}")
-                    return None, None, None
-        except Exception:
-            pass
-
-        # -- Extract tunnel URL from run logs --
-        try:
-            # Try to get logs from the completed job
-            logs_url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/attempts/1/logs"
-            req = urllib.request.Request(
-                logs_url,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/vnd.github+json",
-                    "X-GitHub-Api-Version": "2022-11-28",
-                },
+            if not jobs:
+                continue
+            
+            job = jobs[0]
+            status = job["status"]
+            conclusion = job.get("conclusion")
+            steps = job.get("steps", [])
+            
+            # Show progress
+            current = next(
+                (s["name"] for s in steps if s["status"] == "in_progress"), None
             )
-            with urllib.request.urlopen(req) as r:
-                logs_data = r.read().decode()
+            label = current or status
+            if label != last_step:
+                print(f"  [{status}] {label}")
+                last_step = label
+            
+            # Check if failed
+            if status == "completed" and conclusion in ("failure", "cancelled", "timed_out"):
+                print(f"\nRun ended with: {conclusion}")
+                return None, None, None
+            
+            # Look for tunnel_output step with outputs
+            tunnel_step = next(
+                (s for s in steps if s.get("name") == "Set tunnel output"), None
+            )
+            if tunnel_step and tunnel_step.get("outputs"):
+                outputs = tunnel_step["outputs"]
+                tunnel_url = outputs.get("tunnel_url", "").strip()
+                tunnel_type = outputs.get("tunnel_type", "").strip()
                 
-                # Extract tunnel URL from logs - look for the ::notice message pattern
-                # ::notice title=TunnelURL::https://xxx.com (via Type)
-                m = _TUNNEL_RE.search(logs_data)
-                if m:
-                    public_url = m.group(0)
-                    # Determine tunnel type from URL
-                    tunnel_type = "Cloudflare" if "trycloudflare" in public_url else "LocalTunnel"
-                    
-                    # Extract LocalTunnel password if present
-                    pwd_match = re.search(r'(?:password|PASSWORD)[\s:]+([a-zA-Z0-9]+)', logs_data)
-                    if pwd_match:
-                        lt_password = pwd_match.group(1)
-                    
-                    return public_url, tunnel_type, lt_password
-        except urllib.error.HTTPError as exc:
-            if exc.code != 404:  # 404 = logs not available yet
-                pass
-        except Exception:
+                if tunnel_url:
+                    print(f"✓ Found tunnel URL from job outputs")
+                    return tunnel_url, tunnel_type, None
+        except Exception as exc:
             pass
 
     print("Timed out waiting for tunnel URL (7 min).")

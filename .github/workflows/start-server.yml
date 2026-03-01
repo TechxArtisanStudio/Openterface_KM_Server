@@ -183,33 +183,24 @@ jobs:
           fi
 
       # -----------------------------------------------------------------------
-      # 5b. Display tunnel URL in GitHub Actions summary (not saved to repo)
+      # 5b. Set job outputs with tunnel info (accessible via GitHub API)
       # -----------------------------------------------------------------------
-      - name: Display tunnel info
+      - name: Set tunnel output
+        id: tunnel_output
         run: |
           PUBLIC_URL=$(cat /tmp/tunnel_url.txt)
           TUNNEL_TYPE=$(cat /tmp/tunnel_type.txt)
           
+          # Set as job outputs - accessible via GitHub API without storing in git
+          echo "tunnel_url=$PUBLIC_URL" >> "$GITHUB_OUTPUT"
+          echo "tunnel_type=$TUNNEL_TYPE" >> "$GITHUB_OUTPUT"
+          
+          # Also display in notice
           echo "::notice title=TunnelURL::${PUBLIC_URL} (via ${TUNNEL_TYPE})"
           
-          # Add to GitHub Actions job summary for easy access
-          {
-            echo "## 🌐 Tunnel Information"
-            echo ""
-            echo "- **Type**: $TUNNEL_TYPE"
-            echo "- **HTTP URL**: \`$PUBLIC_URL\`"
-            echo "- **WSS URL**: \`${PUBLIC_URL/https:/wss:}/ws\`"
-            echo ""
-            echo "### Agent Command"
-            echo "\`\`\`bash"
-            echo "python3 agent.py ${PUBLIC_URL/https:/wss:}"
-            echo "\`\`\`"
-            echo ""
-            echo "### Health Check"
-            echo "\`\`\`bash"
-            echo "curl $PUBLIC_URL/status"
-            echo "\`\`\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo ""
+          echo "Tunnel URL: $PUBLIC_URL"
+          echo "Tunnel Type: $TUNNEL_TYPE"
 
 
       # -----------------------------------------------------------------------
