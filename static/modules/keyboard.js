@@ -352,6 +352,15 @@ export function createKeyboardModule({
     function sendVkKey(keyName) {
       if (!keyName) return;
       const parts = [..._vkMods];
+      
+      // If no modifiers, send regular keys as raw text instead of hotkey
+      if (parts.length === 0) {
+        sendRaw(keyName);
+        _vkMods.clear();
+        refreshModHighlights();
+        return;
+      }
+      
       const mapped = parts.map(m => m === 'meta' ? 'win' : m);
       mapped.push(keyName === ' ' ? 'space' : keyName);
       sendHotkey(mapped.join('+'));
