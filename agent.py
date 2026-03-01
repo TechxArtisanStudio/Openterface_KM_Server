@@ -586,7 +586,12 @@ async def run(server_url: str) -> None:
                     "Linux": "linux",
                 }
                 os_type = platform_map.get(system_name, "unknown")
-                await ws.send(json.dumps({"type": "agent_platform", "platform": os_type}))
+                try:
+                    await ws.send(json.dumps({"type": "agent_platform", "platform": os_type}))
+                    log.info("Sent platform info: %s", os_type)
+                except Exception as e:
+                    log.warning("Failed to send platform info: %s", e)
+                
                 log.info("Agent connected on %s. Waiting for commands…", os_type)
 
                 async def _receive() -> None:

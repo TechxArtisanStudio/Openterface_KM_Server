@@ -137,10 +137,16 @@
           setAgentStatus(msg.count);
         } else if (msg.type === 'agent_platform') {
           // Agent has connected from a specific OS - auto-select it and update System tab
-          targetOS = msg.platform;
-          localStorage.setItem('km_target_os', targetOS);
-          renderSysTab();
-          banner(`\r\n\x1b[0;36m  Agent connected on ${targetOS.toUpperCase()}\x1b[0m\r\n`);
+          const newOS = msg.platform;
+          if (newOS && newOS !== 'unknown' && newOS !== targetOS) {
+            targetOS = newOS;
+            localStorage.setItem('km_target_os', targetOS);
+            // Force a visual refresh of the System tab
+            if (typeof renderSysTab !== 'undefined') {
+              renderSysTab();
+            }
+            banner(`\r\n\x1b[0;36m  ✓ Switched to ${targetOS.toUpperCase()} shortcuts\x1b[0m\r\n`);
+          }
         } else if (msg.type === 'session_info') {
           initCountdown(msg.expires_at, msg.duration_minutes);
         } else if (msg.type === 'window_title') {
@@ -358,7 +364,7 @@
     ],
   };
 
-  let targetOS = localStorage.getItem('km_target_os') || 'macos';
+  let targetOS = localStorage.getItem('km_target_os') || 'unknown';
 
   /* ------------------------------------------------------------------ */
   /* Session countdown                                                    */
@@ -520,6 +526,18 @@
 
     // Rebuild key grid
     grid.innerHTML = '';
+    
+    // If we haven't detected the platform yet, show a placeholder
+    if (targetOS === 'unknown') {
+      const msg = document.createElement('div');
+      msg.style.padding = '20px';
+      msg.style.textAlign = 'center';
+      msg.style.color = '#888';
+      msg.textContent = 'Select your OS or connect an agent to auto-detect\u2026';
+      grid.appendChild(msg);
+      return;
+    }
+    
     (SYS_KEYS_BY_OS[targetOS] || []).forEach(k => {
       const btn = document.createElement('button');
       btn.className = 'qkey';
