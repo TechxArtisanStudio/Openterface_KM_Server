@@ -166,6 +166,7 @@
           img.style.display = 'block';
           meta.textContent = msg.width + '\u00d7' + msg.height;
           overlay.classList.add('show');
+          lastScreenshotData = msg;  // store for pinning
         } else if (msg.type === 'screenshot_error') {
           const overlay = document.getElementById('screenshot-overlay');
           const spinner = document.getElementById('screenshot-spinner');
@@ -228,6 +229,9 @@
   const helpOverlay = document.getElementById('help-overlay');
   // Screenshot
   const screenshotOverlay = document.getElementById('screenshot-overlay');
+  const screenshotPinned  = document.getElementById('screenshot-pinned');
+  let lastScreenshotData  = null;  // store current screenshot for pinning
+  
   function openScreenshot() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const spinner = document.getElementById('screenshot-spinner');
@@ -243,6 +247,28 @@
   }
   document.getElementById('btn-screenshot').onclick = openScreenshot;
   document.getElementById('btn-screenshot-refresh').onclick = openScreenshot;
+  
+  // Pin button: copy screenshot to pinned section and close modal
+  document.getElementById('btn-screenshot-pin').onclick = () => {
+    if (!lastScreenshotData) return;
+    const pinnedImg  = document.getElementById('screenshot-pinned-img');
+    const pinnedMeta = document.getElementById('screenshot-pinned-meta');
+    pinnedImg.src = lastScreenshotData.data;
+    pinnedImg.style.display = 'block';
+    pinnedMeta.textContent = lastScreenshotData.width + '\u00d7' + lastScreenshotData.height;
+    screenshotPinned.classList.remove('hidden');
+    screenshotOverlay.classList.remove('show');
+    term.focus();
+  };
+  
+  // Unpin button: hide pinned section
+  document.getElementById('btn-screenshot-unpin').onclick = () => {
+    screenshotPinned.classList.add('hidden');
+    term.focus();
+  };
+  
+  // Refresh button in pinned section
+  document.getElementById('btn-screenshot-refresh-pinned').onclick = openScreenshot;
   document.getElementById('btn-screenshot-close').onclick = () => { screenshotOverlay.classList.remove('show'); term.focus(); };
   screenshotOverlay.addEventListener('click', (e) => { if (e.target === screenshotOverlay) { screenshotOverlay.classList.remove('show'); term.focus(); } });
 

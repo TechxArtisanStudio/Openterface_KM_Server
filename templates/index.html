@@ -65,6 +65,21 @@
 
 <!-- TERMINAL -->
 <div id="terminal-wrap">
+  <!-- Pinned screenshot panel (hidden by default) -->
+  <div id="screenshot-pinned" class="hidden">
+    <div id="screenshot-pinned-hdr">
+      <span>🔍 Target Screen (Pinned)</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span id="screenshot-pinned-meta" style="font-size:10px;color:var(--text-muted)"></span>
+        <button class="tb-btn" id="btn-screenshot-refresh-pinned" title="Refresh">↻ Refresh</button>
+        <button class="tb-btn" id="btn-screenshot-unpin" title="Unpin">📌 Unpin</button>
+      </div>
+    </div>
+    <div id="screenshot-pinned-body">
+      <img id="screenshot-pinned-img" alt="Target screen" style="display:none"/>
+    </div>
+  </div>
+
   <div id="terminal"></div>
 
   <!-- INPUT PANEL -->
@@ -216,8 +231,7 @@
     <div id="screenshot-hdr">
       <span>📷 Target Screen</span>
       <div style="display:flex;gap:6px;align-items:center">
-        <span id="screenshot-meta" style="font-size:10px;color:var(--text-muted)"></span>
-        <button class="tb-btn" id="btn-screenshot-refresh" title="Refresh">&#x21BB; Refresh</button>
+        <span id="screenshot-meta" style="font-size:10px;color:var(--text-muted)"></span>        <button class="tb-btn" id="btn-screenshot-pin" title="Pin to main view">📌 Pin</button>        <button class="tb-btn" id="btn-screenshot-refresh" title="Refresh">&#x21BB; Refresh</button>
         <button class="tb-btn" id="btn-screenshot-close">&times;</button>
       </div>
     </div>
