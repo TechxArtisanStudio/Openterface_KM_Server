@@ -50,6 +50,13 @@ jobs:
           cloudflared --version
 
       # -----------------------------------------------------------------------
+      # 3b. Install localtunnel (fallback tunnel solution)
+      # -----------------------------------------------------------------------
+      - name: Install localtunnel
+        run: |
+          npm install -g localtunnel
+
+      # -----------------------------------------------------------------------
       # 4. Start uvicorn server in background
       # -----------------------------------------------------------------------
       - name: Start uvicorn server
@@ -68,45 +75,75 @@ jobs:
           done
 
       # -----------------------------------------------------------------------
-      # 5. Start Cloudflare quick tunnel and extract public URL
+      # 5. Start Cloudflare tunnel first, fallback to LocalTunnel if needed
       # -----------------------------------------------------------------------
-      - name: Start Cloudflare tunnel and print public URL
+      - name: Start tunnel (Cloudflare with LocalTunnel fallback)
         run: |
+          PUBLIC_URL=""
+          TUNNEL_TYPE=""
+
+          # Try Cloudflare first
+          echo "Attempting to start Cloudflare tunnel..."
           nohup cloudflared tunnel --url http://127.0.0.1:8765 \
             > /tmp/cf.log 2>&1 &
-          echo "Waiting for tunnel URL …"
-
-          PUBLIC_URL=""
+          CF_PID=$!
+          
           for i in $(seq 1 40); do
             sleep 3
-            # cloudflared writes a line like:
-            #   INF +----------------------------+
-            #   INF |  https://xxxx.trycloudflare.com  |
-            # Grab the https://... URL from the log
             PUBLIC_URL=$(grep -oP 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1)
             if [ -n "$PUBLIC_URL" ]; then
+              TUNNEL_TYPE="Cloudflare"
+              echo "✓ Cloudflare tunnel started successfully"
               break
             fi
           done
 
+          # Fallback to LocalTunnel if Cloudflare failed
           if [ -z "$PUBLIC_URL" ]; then
-            echo "ERROR: could not detect tunnel URL after waiting. Dumping cloudflared log:"
-            cat /tmp/cf.log
+            echo "⚠ Cloudflare tunnel failed, falling back to LocalTunnel..."
+            kill $CF_PID 2>/dev/null || true
+            sleep 2
+            
+            nohup lt --port 8765 --print-requests \
+              > /tmp/lt.log 2>&1 &
+            LT_PID=$!
+            
+            for i in $(seq 1 40); do
+              sleep 2
+              # LocalTunnel output format: https://adjective-noun-random.loca.lt
+              PUBLIC_URL=$(grep -oP 'https://[a-zA-Z0-9\-]+\.loca\.lt' /tmp/lt.log | head -1)
+              if [ -n "$PUBLIC_URL" ]; then
+                TUNNEL_TYPE="LocalTunnel"
+                echo "✓ LocalTunnel started successfully"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "$PUBLIC_URL" ]; then
+            echo "ERROR: both Cloudflare and LocalTunnel failed"
+            echo "=== Cloudflare log ==="
+            cat /tmp/cf.log || true
+            echo ""
+            echo "=== LocalTunnel log ==="
+            cat /tmp/lt.log || true
             exit 1
           fi
 
           echo "$PUBLIC_URL" > /tmp/tunnel_url.txt
-          echo "::notice title=TunnelURL::$PUBLIC_URL"
-          # Write tunnel URL to .tunnel-url in the repo using git push
+          echo "$TUNNEL_TYPE" > /tmp/tunnel_type.txt
+          echo "::notice title=TunnelURL::$PUBLIC_URL (via $TUNNEL_TYPE)"
+          
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
           echo "$PUBLIC_URL" > .tunnel-url
           git add .tunnel-url
-          git commit -m "chore: update tunnel URL" || echo "No changes to commit"
+          git commit -m "chore: update tunnel URL (via $TUNNEL_TYPE)" || echo "No changes to commit"
           git push || echo "git push failed, URL available in logs above"
           echo "Tunnel URL written to repo file .tunnel-url"
           echo ""
           echo "============================================================"
+          echo "  TUNNEL TYPE     : $TUNNEL_TYPE"
           echo "  PUBLIC HTTP URL : $PUBLIC_URL"
           echo "  PUBLIC WSS URL  : ${PUBLIC_URL/https:/wss:}/ws"
           echo "  Health-check    : curl $PUBLIC_URL"
@@ -139,3 +176,6 @@ jobs:
           echo ""
           echo "=== cloudflared log ==="
           cat /tmp/cf.log || true
+          echo ""
+          echo "=== localtunnel log ==="
+          cat /tmp/lt.log || true
