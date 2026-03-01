@@ -139,6 +139,7 @@ jobs:
           # Save password if LocalTunnel
           if [ -n "$LT_PASSWORD" ]; then
             echo "$LT_PASSWORD" > /tmp/lt_password.txt
+            echo "$LT_PASSWORD" > .tunnel-password
           fi
           
           echo "::notice title=TunnelURL::$PUBLIC_URL (via $TUNNEL_TYPE)"
@@ -147,7 +148,10 @@ jobs:
           git config --global user.name "GitHub Actions"
           echo "$PUBLIC_URL" > .tunnel-url
           git add .tunnel-url
-          git commit -m "chore: update tunnel URL (via $TUNNEL_TYPE)" || echo "No changes to commit"
+          if [ -n "$LT_PASSWORD" ]; then
+            git add .tunnel-password
+          fi
+          git commit -m "chore: update tunnel URL and password (via $TUNNEL_TYPE)" || echo "No changes to commit"
           git push || echo "git push failed, URL available in logs above"
           echo "Tunnel URL written to repo file .tunnel-url"
           echo ""
@@ -157,6 +161,9 @@ jobs:
           echo "  PUBLIC WSS URL  : ${PUBLIC_URL/https:/wss:}/ws"
           if [ -n "$LT_PASSWORD" ]; then
             echo "  PASSWORD        : $LT_PASSWORD"
+            echo ""
+            echo "  ⚠  LocalTunnel requires password authentication!"
+            echo "     Use in browser: $PUBLIC_URL/?password=$LT_PASSWORD"
           fi
           echo "  Health-check    : curl $PUBLIC_URL"
           echo "  Client count    : curl $PUBLIC_URL/clients"

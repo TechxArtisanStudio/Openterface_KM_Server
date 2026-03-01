@@ -112,11 +112,12 @@ def watch_for_tunnel_url(repo: str, token: str, run_id: int, dispatched_at: str 
     """
     Poll the repo file `.tunnel-url` (written by the workflow using the
     contents API + GITHUB_TOKEN with contents:write permission).
-    Also extract LocalTunnel password from run logs if present.
+    Also read `.tunnel-password` if LocalTunnel is used.
     Returns (tunnel_url, tunnel_type, password), or (None, None, None) on timeout/failure.
     """
     jobs_url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/jobs"
     file_url = f"https://api.github.com/repos/{repo}/contents/.tunnel-url"
+    password_file_url = f"https://api.github.com/repos/{repo}/contents/.tunnel-password"
 
     print(f"\nWatching: https://github.com/{repo}/actions/runs/{run_id}")
     print("Polling .tunnel-url file in repo (ready in ~60 s) …\n")
@@ -149,27 +150,6 @@ def watch_for_tunnel_url(repo: str, token: str, run_id: int, dispatched_at: str 
         except Exception:
             pass
 
-        # -- Extract password from logs if using LocalTunnel --
-        if not lt_password:
-            try:
-                logs_url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/attempts/1/logs"
-                req = urllib.request.Request(
-                    logs_url,
-                    headers={
-                        "Authorization": f"Bearer {token}",
-                        "Accept": "application/vnd.github+json",
-                        "X-GitHub-Api-Version": "2022-11-28",
-                    },
-                )
-                with urllib.request.urlopen(req) as r:
-                    logs_data = r.read().decode()
-                    # Extract LocalTunnel password from logs
-                    m = re.search(r'(?:password|PASSWORD)[\s:]+([a-zA-Z0-9]+)', logs_data)
-                    if m:
-                        lt_password = m.group(1)
-            except Exception:
-                pass
-
         # -- Poll .tunnel-url file --
         try:
             file_data  = _gh_get(file_url, token)
@@ -177,11 +157,13 @@ def watch_for_tunnel_url(repo: str, token: str, run_id: int, dispatched_at: str 
             raw  = _b64.b64decode(file_data["content"]).decode().strip()
             m    = _TUNNEL_RE.search(raw)
             if m:
+                tunnel_url = m.group(0)
+                tunnel_type = "Cloudflare" if "trycloudflare" in tunnel_url else "LocalTunnel"
+                
                 # Guard against a stale file from a previous run by checking
                 # that the commit timestamp is close to dispatched_at.
                 # Allow 90 s of clock skew between local machine and GitHub.
                 commit_date = ""
-                tunnel_type = "Cloudflare" if "trycloudflare" in m.group(0) else "LocalTunnel"
                 try:
                     commits_url = f"https://api.github.com/repos/{repo}/commits?path=.tunnel-url&per_page=1"
                     commits     = _gh_get(commits_url, token)
@@ -200,7 +182,18 @@ def watch_for_tunnel_url(repo: str, token: str, run_id: int, dispatched_at: str 
                 if dispatched_at and commit_date and commit_date < stale_threshold:
                     print(f"  [skip] Stale URL in file (committed {commit_date}, dispatched {dispatched_at})")
                     continue   # stale from a previous run
-                return m.group(0), tunnel_type, lt_password
+                
+                # If LocalTunnel, try to read the password file
+                if tunnel_type == "LocalTunnel" and not lt_password:
+                    try:
+                        password_data = _gh_get(password_file_url, token)
+                        lt_password = _b64.b64decode(password_data["content"]).decode().strip()
+                    except urllib.error.HTTPError:
+                        pass  # password file might not exist yet
+                    except Exception:
+                        pass
+                
+                return tunnel_url, tunnel_type, lt_password
         except urllib.error.HTTPError as exc:
             if exc.code != 404:  # 404 = file not written yet
                 print(f"  [file] HTTP {exc.code}")
