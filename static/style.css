@@ -280,10 +280,10 @@ body {
 .os-selector {
   display: flex;
   gap: 4px;
+  align-items: center;
 }
 .os-pill {
-  flex: 1;
-  padding: 4px 2px;
+  padding: 4px 8px;
   border: 1px solid var(--border); border-radius: 4px;
   background: transparent; color: var(--text-muted);
   font-size: 10px; font-weight: 600;

@@ -37,6 +37,9 @@
       Screen
     </button>
 
+    <!-- OS Selector -->
+    <div id="os-selector" class="os-selector"></div>
+
     <!-- help -->
     <button class="tb-btn" id="btn-help" title="Help / shortcuts">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M6.5 6.5 Q8 4.5 9.5 6.5 Q8 8 8 9.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.7" fill="currentColor" stroke="none"/></svg>
@@ -188,7 +191,6 @@
         <div class="quick-grid" id="qtab-nav"></div>
         <div class="quick-grid hidden" id="qtab-edit"></div>
         <div class="sys-panel hidden" id="qtab-sys">
-          <div id="os-selector" class="os-selector"></div>
           <div class="quick-grid" id="qtab-sys-grid"></div>
         </div>
       </div>
@@ -370,6 +372,6 @@
 </div>
 
 
-<script src="/static/app.js"></script>
+<script type="module" src="/static/app.js"></script>
 </body>
 </html>
