@@ -20,23 +20,47 @@ jobs:
         with:
           python-version: '3.9'
       
+      - name: Write GitHub Action Variables
+        id: write_vars
+        run: |
+          echo "Writing GitHub Actions variables using GITHUB_OUTPUT..."
+          echo "action_var_1=Hello from GitHub Actions" >> $GITHUB_OUTPUT
+          echo "action_var_2=Build Success" >> $GITHUB_OUTPUT
+          echo "action_var_3=$(date +%Y-%m-%d\ %H:%M:%S)" >> $GITHUB_OUTPUT
+          echo "Variables written successfully!"
+      
       - name: Run GitHub Variables Reader
         env:
           MYGITHUB_TOKEN: ${{ secrets.MYGITHUB_TOKEN }}
+          ACTION_VAR_1: ${{ steps.write_vars.outputs.action_var_1 }}
+          ACTION_VAR_2: ${{ steps.write_vars.outputs.action_var_2 }}
+          ACTION_VAR_3: ${{ steps.write_vars.outputs.action_var_3 }}
         run: |
           echo "Running GitHub Actions variable reader..."
+          echo "Variables passed to Python:"
+          echo "  ACTION_VAR_1=$ACTION_VAR_1"
+          echo "  ACTION_VAR_2=$ACTION_VAR_2"
+          echo "  ACTION_VAR_3=$ACTION_VAR_3"
           python read_github_vars.py
+          if [ $? -ne 0 ]; then
+            echo "ERROR: Python script failed!"
+            exit 1
+          fi
+          echo "✓ Test passed successfully!"
       
-      - name: Test with additional variables
+      - name: Test reading action variables with Python
         env:
           MYGITHUB_TOKEN: ${{ secrets.MYGITHUB_TOKEN }}
-          CUSTOM_VAR: "Hello from GitHub Actions"
+          ACTION_VAR_1: ${{ steps.write_vars.outputs.action_var_1 }}
+          ACTION_VAR_2: ${{ steps.write_vars.outputs.action_var_2 }}
+          ACTION_VAR_3: ${{ steps.write_vars.outputs.action_var_3 }}
         run: |
-          echo "Testing with additional custom variables..."
-          python read_github_vars.py CUSTOM_VAR
+          echo "Testing action variables read by Python..."
+          python read_github_vars.py ACTION_VAR_1 ACTION_VAR_2 ACTION_VAR_3
       
-      - name: Display all environment variables (for debugging)
+      - name: Display action variables written in previous step
         run: |
-          echo "All available environment variables related to GitHub Actions:"
-          env | grep -i github || true
-          env | grep -i token || true
+          echo "Action variables written by 'Write GitHub Action Variables' step:"
+          echo "  action_var_1: ${{ steps.write_vars.outputs.action_var_1 }}"
+          echo "  action_var_2: ${{ steps.write_vars.outputs.action_var_2 }}"
+          echo "  action_var_3: ${{ steps.write_vars.outputs.action_var_3 }}"

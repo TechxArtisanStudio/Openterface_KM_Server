@@ -21,6 +21,11 @@ def read_github_variables():
     # Read custom secret from GitHub Actions
     github_token = os.getenv('MYGITHUB_TOKEN')
     
+    # Read action variables passed from previous step
+    action_var_1 = os.getenv('ACTION_VAR_1')
+    action_var_2 = os.getenv('ACTION_VAR_2')
+    action_var_3 = os.getenv('ACTION_VAR_3')
+    
     # Read built-in GitHub Actions environment variables
     github_event = os.getenv('GITHUB_EVENT_NAME')
     github_ref = os.getenv('GITHUB_REF')
@@ -45,6 +50,12 @@ def read_github_variables():
         print("  Token is set: NO")
     
     print()
+    print("--- GitHub Actions Variables (from $GITHUB_OUTPUT) ---")
+    print(f"ACTION_VAR_1: {action_var_1 or 'NOT SET'}")
+    print(f"ACTION_VAR_2: {action_var_2 or 'NOT SET'}")
+    print(f"ACTION_VAR_3: {action_var_3 or 'NOT SET'}")
+    
+    print()
     print("--- GitHub Actions Environment Variables ---")
     print(f"Event Name: {github_event or 'N/A'}")
     print(f"Ref: {github_ref or 'N/A'}")
@@ -67,6 +78,24 @@ def read_github_variables():
         all_vars_present = False
     else:
         print("✓ MYGITHUB_TOKEN secret successfully read")
+    
+    if not action_var_1:
+        print("✗ ACTION_VAR_1 is missing!")
+        all_vars_present = False
+    else:
+        print("✓ ACTION_VAR_1 successfully read from $GITHUB_OUTPUT")
+    
+    if not action_var_2:
+        print("✗ ACTION_VAR_2 is missing!")
+        all_vars_present = False
+    else:
+        print("✓ ACTION_VAR_2 successfully read from $GITHUB_OUTPUT")
+    
+    if not action_var_3:
+        print("✗ ACTION_VAR_3 is missing!")
+        all_vars_present = False
+    else:
+        print("✓ ACTION_VAR_3 successfully read from $GITHUB_OUTPUT")
     
     if not github_event:
         print("✗ GITHUB_EVENT_NAME is missing!")
