@@ -1,0 +1,42 @@
+name: Test GitHub Actions Variables with Python
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  test-github-variables:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Run GitHub Variables Reader
+        env:
+          MYGITHUB_TOKEN: ${{ secrets.MYGITHUB_TOKEN }}
+        run: |
+          echo "Running GitHub Actions variable reader..."
+          python read_github_vars.py
+      
+      - name: Test with additional variables
+        env:
+          MYGITHUB_TOKEN: ${{ secrets.MYGITHUB_TOKEN }}
+          CUSTOM_VAR: "Hello from GitHub Actions"
+        run: |
+          echo "Testing with additional custom variables..."
+          python read_github_vars.py CUSTOM_VAR
+      
+      - name: Display all environment variables (for debugging)
+        run: |
+          echo "All available environment variables related to GitHub Actions:"
+          env | grep -i github || true
+          env | grep -i token || true
