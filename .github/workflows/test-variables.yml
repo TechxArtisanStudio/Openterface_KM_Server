@@ -1,4 +1,4 @@
-name: Test Variable Writing
+name: Test GitHub Actions Variable Writing
 
 on:
   push:
@@ -8,60 +8,56 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-env-variables:
+  job-one:
+    runs-on: ubuntu-latest
+    outputs:
+      output_var: ${{ steps.set_var.outputs.output_var }}
+      build_version: ${{ steps.set_var.outputs.build_version }}
+      timestamp: ${{ steps.set_var.outputs.timestamp }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Write GitHub Actions variables
+        id: set_var
+        run: |
+          echo "output_var=Hello from Job One" >> $GITHUB_OUTPUT
+          echo "build_version=1.0.0" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date +%Y-%m-%d\ %H:%M:%S)" >> $GITHUB_OUTPUT
+          echo "commit_sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+      
+      - name: Display variables within job
+        run: |
+          echo "output_var: ${{ steps.set_var.outputs.output_var }}"
+          echo "build_version: ${{ steps.set_var.outputs.build_version }}"
+          echo "timestamp: ${{ steps.set_var.outputs.timestamp }}"
+          echo "commit_sha: ${{ steps.set_var.outputs.commit_sha }}"
+  
+  job-two:
+    needs: job-one
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Test writing environment variables
+      - name: Use variables from previous job
         run: |
-          echo "Setting environment variables..."
-          echo "TEST_ENV_VAR=Hello from ENV" >> $GITHUB_ENV
-          echo "BUILD_VERSION=1.0.0" >> $GITHUB_ENV
-          echo "SUCCESS=true" >> $GITHUB_ENV
+          echo "Received from job-one:"
+          echo "output_var: ${{ needs.job-one.outputs.output_var }}"
+          echo "build_version: ${{ needs.job-one.outputs.build_version }}"
+          echo "timestamp: ${{ needs.job-one.outputs.timestamp }}"
       
-      - name: Display environment variables
+      - name: Write new variables in this job
+        id: process_var
         run: |
-          echo "TEST_ENV_VAR: $TEST_ENV_VAR"
-          echo "BUILD_VERSION: $BUILD_VERSION"
-          echo "SUCCESS: $SUCCESS"
+          echo "processed_data=Data processed successfully" >> $GITHUB_OUTPUT
+          echo "status=COMPLETED" >> $GITHUB_OUTPUT
+          echo "upstream_version=${{ needs.job-one.outputs.build_version }}" >> $GITHUB_OUTPUT
       
-      - name: Test output variables
-        id: set_outputs
+      - name: Display new job variables
         run: |
-          echo "output_var=Test Output Value" >> $GITHUB_OUTPUT
-          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
-          echo "commit_sha=${{ github.sha }}" >> $GITHUB_OUTPUT
-      
-      - name: Display output variables
-        run: |
-          echo "output_var: ${{ steps.set_outputs.outputs.output_var }}"
-          echo "timestamp: ${{ steps.set_outputs.outputs.timestamp }}"
-          echo "commit_sha: ${{ steps.set_outputs.outputs.commit_sha }}"
-      
-      - name: Test job outputs
-        run: |
-          echo "job_number=${{ github.run_number }}" >> $GITHUB_ENV
-          echo "job_id=${{ github.run_id }}" >> $GITHUB_ENV
-      
-      - name: Verify job variables
-        run: |
-          echo "Job Number: $job_number"
-          echo "Job ID: $job_id"
-          echo "Workflow: ${{ github.workflow }}"
-          echo "Event: ${{ github.event_name }}"
-      
-      - name: Test multiline variables
-        run: |
-          echo "MULTILINE_VAR<<EOF" >> $GITHUB_ENV
-          echo "Line 1: Test multiline" >> $GITHUB_ENV
-          echo "Line 2: Variable writing" >> $GITHUB_ENV
-          echo "Line 3: Works correctly" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-      
-      - name: Display multiline variable
-        run: |
-          echo "Multiline variable:"
-          echo "$MULTILINE_VAR"
+          echo "processed_data: ${{ steps.process_var.outputs.processed_data }}"
+          echo "status: ${{ steps.process_var.outputs.status }}"
+          echo "upstream_version: ${{ steps.process_var.outputs.upstream_version }}"
