@@ -205,6 +205,31 @@ jobs:
           echo "Tunnel URL: $PUBLIC_URL"
           echo "Tunnel Type: $TUNNEL_TYPE"
 
+      # -----------------------------------------------------------------------
+      # 5c. Write environment variables to test_env file
+      # -----------------------------------------------------------------------
+      - name: Write test_env file
+        run: |
+          cat > test_env << 'EOF'
+          # GitHub Actions Environment Variables
+          MYVAR=Tunnel Server Online
+          TUNNEL_URL=${{ steps.tunnel_output.outputs.tunnel_url }}
+          TUNNEL_TYPE=${{ steps.tunnel_output.outputs.tunnel_type }}
+          RUN_ID=${{ github.run_id }}
+          RUN_NUMBER=${{ github.run_number }}
+          WORKFLOW=${{ github.workflow }}
+          REPOSITORY=${{ github.repository }}
+          REF=${{ github.ref }}
+          EVENT=${{ github.event_name }}
+          EOF
+          
+          echo "test_env file created:"
+          cat test_env
+          
+          # Also save to artifact for later download
+          mkdir -p artifacts
+          cp test_env artifacts/test_env
+
 
       # -----------------------------------------------------------------------
       # 6. Keep runner alive for the requested number of minutes
@@ -218,6 +243,17 @@ jobs:
           echo "Server will stay alive for ${DURATION} minute(s) (${SECONDS_LEFT}s)."
           echo "Send Ctrl-C from the GitHub Actions UI (cancel the job) to stop early."
           sleep "$SECONDS_LEFT"
+
+      # -----------------------------------------------------------------------
+      # 6b. Upload test_env as artifact
+      # -----------------------------------------------------------------------
+      - name: Upload test_env artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-env-file
+          path: test_env
+          retention-days: 1
 
       # -----------------------------------------------------------------------
       # 7. Show server logs on completion (useful for debugging)
