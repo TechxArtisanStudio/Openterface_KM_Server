@@ -5,5 +5,4 @@ __pycache__/
 dist/
 .DS_Store
 *.log
-.env.tunnel-url
 .env
