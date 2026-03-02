@@ -24,6 +24,9 @@ jobs:
     timeout-minutes: 65
     permissions:
       contents: write  # needed for checkout + writing tunnel URL file   # hard cap — keep above maximum allowed duration_minutes
+    outputs:
+      tunnel_url: ${{ steps.tunnel_output.outputs.tunnel_url }}
+      tunnel_type: ${{ steps.tunnel_output.outputs.tunnel_type }}
 
     steps:
       # -----------------------------------------------------------------------
