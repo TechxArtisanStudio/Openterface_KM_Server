@@ -1,0 +1,67 @@
+name: Test Variable Writing
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  test-env-variables:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Test writing environment variables
+        run: |
+          echo "Setting environment variables..."
+          echo "TEST_ENV_VAR=Hello from ENV" >> $GITHUB_ENV
+          echo "BUILD_VERSION=1.0.0" >> $GITHUB_ENV
+          echo "SUCCESS=true" >> $GITHUB_ENV
+      
+      - name: Display environment variables
+        run: |
+          echo "TEST_ENV_VAR: $TEST_ENV_VAR"
+          echo "BUILD_VERSION: $BUILD_VERSION"
+          echo "SUCCESS: $SUCCESS"
+      
+      - name: Test output variables
+        id: set_outputs
+        run: |
+          echo "output_var=Test Output Value" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "commit_sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+      
+      - name: Display output variables
+        run: |
+          echo "output_var: ${{ steps.set_outputs.outputs.output_var }}"
+          echo "timestamp: ${{ steps.set_outputs.outputs.timestamp }}"
+          echo "commit_sha: ${{ steps.set_outputs.outputs.commit_sha }}"
+      
+      - name: Test job outputs
+        run: |
+          echo "job_number=${{ github.run_number }}" >> $GITHUB_ENV
+          echo "job_id=${{ github.run_id }}" >> $GITHUB_ENV
+      
+      - name: Verify job variables
+        run: |
+          echo "Job Number: $job_number"
+          echo "Job ID: $job_id"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Event: ${{ github.event_name }}"
+      
+      - name: Test multiline variables
+        run: |
+          echo "MULTILINE_VAR<<EOF" >> $GITHUB_ENV
+          echo "Line 1: Test multiline" >> $GITHUB_ENV
+          echo "Line 2: Variable writing" >> $GITHUB_ENV
+          echo "Line 3: Works correctly" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+      
+      - name: Display multiline variable
+        run: |
+          echo "Multiline variable:"
+          echo "$MULTILINE_VAR"
