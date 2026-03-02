@@ -57,6 +57,11 @@ jobs:
         run: |
           echo "Testing action variables read by Python..."
           python read_github_vars.py ACTION_VAR_1 ACTION_VAR_2 ACTION_VAR_3
+          if [ $? -ne 0 ]; then
+            echo "ERROR: Action variables test failed!"
+            exit 1
+          fi
+          echo "✓ All action variables test passed!"
       
       - name: Display action variables written in previous step
         run: |
